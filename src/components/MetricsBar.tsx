@@ -58,6 +58,7 @@ const ERR_DATA = [0.06, 0.05, 0.07, 0.04, 0.05, 0.03, 0.04, 0.05, 0.04, 0.04];
 
 interface MetricsBarProps {
   nodeCount?: number;
+  activeNodeCount?: number;
   totalNodes?: number;
   metrics?: SimMetrics;
 }
@@ -69,11 +70,13 @@ const EMPTY_METRICS: SimMetrics = {
   p99: 0,
   errorRate: 0,
   throughput: 0,
+  totalPackets: 0,
+  droppedPackets: 0,
   bottleneck: null,
 };
 
-export function MetricsBar({ nodeCount = 0, totalNodes = 12, metrics = EMPTY_METRICS }: MetricsBarProps) {
-  const active = Math.min(nodeCount, totalNodes || 12);
+export function MetricsBar({ nodeCount = 0, activeNodeCount, totalNodes = 12, metrics = EMPTY_METRICS }: MetricsBarProps) {
+  const active = Math.min(activeNodeCount ?? nodeCount, totalNodes || 12);
   const rpsData = scaleSeries(RPS_DATA, metrics.globalRPS || 1);
   const p99Data = scaleSeries(P99_DATA, metrics.p99 || 1);
   const errData = scaleSeries(ERR_DATA.map(v => v * 100), Math.max(metrics.errorRate * 100, 0.01));

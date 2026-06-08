@@ -6,8 +6,10 @@ import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { Canvas, type CanvasHandle } from './components/Canvas';
 import { PropertiesPanel } from './components/PropertiesPanel';
-import { MetricsBar } from './components/MetricsBar';
+import { BottomBar } from './components/BottomBar';
 import { IssuesPanel } from './components/IssuesPanel';
+import { PresetsModal, type Preset } from './components/PresetsModal';
+import { GuidedTour } from './components/GuidedTour';
 import { ValidationToastContainer, type Toast } from './components/ValidationToast';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -73,14 +75,20 @@ function _MetricsSlot() { return null; }
 function CanvasPage() {
   const [nodeCount,    setNodeCount]    = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [issues,       setIssues]       = useState<ValidationIssue[]>([]);
   const [toasts,       setToasts]       = useState<Toast[]>([]);
   const [topology,     setTopology]     = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] });
+  const [speed,        setSpeed]        = useState(1);
+  const [traffic,      setTraffic]      = useState(1);
+  const [showIssues,   setShowIssues]   = useState(false);
+  const [showPresets,  setShowPresets]  = useState(false);
   const canvasRef = useRef<CanvasHandle | null>(null);
-  const { metrics, isRunning, start } = useSimulation(topology.nodes, topology.edges);
+  const { metrics, isRunning, start, stop, injectChaos, nodeStates, edgeStates, setSpeed: engineSetSpeed, setBaseRPS } = useSimulation(topology.nodes, topology.edges);
 
   const handleCountChange  = useCallback((n: number) => setNodeCount(n), []);
   const handleNodeSelect   = useCallback((node: Node | null) => setSelectedNode(node), []);
+  const handleEdgeSelect   = useCallback((edgeId: string | null) => setSelectedEdgeId(edgeId), []);
   const handleIssuesChange = useCallback((next: ValidationIssue[]) => setIssues(next), []);
   const handleNewIssues    = useCallback((fresh: ValidationIssue[]) => {
     setToasts(prev => [
@@ -102,24 +110,82 @@ function CanvasPage() {
     await diagramApi.save(`Diagram ${new Date().toLocaleDateString()}`, 'canvas', JSON.stringify(snap));
   }, []);
 
+  const activeNodeCount = topology.nodes.filter((node) => nodeStates.get(node.id)?.status !== 'down').length;
+  const selectedNodeId = selectedNode?.id ?? null;
+  const toggleSimulation = useCallback(() => {
+    if (isRunning) stop();
+    else start();
+  }, [isRunning, start, stop]);
+
+  const handleSpeedChange = useCallback((v: number) => {
+    setSpeed(v);
+    engineSetSpeed(v);
+  }, [engineSetSpeed]);
+
+  const handlePresetLoad = useCallback((preset: Preset) => {
+    setShowPresets(false);
+    canvasRef.current?.loadPreset(preset.nodes, preset.edges);
+  }, []);
+
+  const handleChaosOnNode = useCallback((chaosId: string, nodeId: string) => {
+    // Map chaos scenario id to engine method
+    const method =
+      chaosId === 'node-crash' || chaosId === 'dc-failure' || chaosId === 'disk-failure'
+        ? 'crash'
+        : chaosId === 'latency-spike' || chaosId === 'slowdown' || chaosId === 'gc-pause'
+        ? 'latency'
+        : chaosId === 'net-partition' || chaosId === 'packet-loss'
+        ? 'partition'
+        : 'crash';
+    injectChaos(method, nodeId);
+  }, [injectChaos]);
+
+  const handleTrafficChange = useCallback((v: number) => {
+    setTraffic(v);
+    setBaseRPS(1000 * v);
+  }, [setBaseRPS]);
+
   return (
-    <AppShell showSidebar onSave={handleSave} onSimulationStart={start} simulationRunning={isRunning}>
+    <AppShell showSidebar onSave={handleSave} onSimulationStart={toggleSimulation} simulationRunning={isRunning}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
         <ReactFlowProvider>
           <Canvas
             onCountChange={handleCountChange}
             onNodeSelect={handleNodeSelect}
+            onEdgeSelect={handleEdgeSelect}
             onIssuesChange={handleIssuesChange}
             onNewIssues={handleNewIssues}
             onTopologyChange={handleTopologyChange}
+            onPresetsClick={() => setShowPresets(true)}
+            onChaosOnNode={handleChaosOnNode}
+            isSimulationRunning={isRunning}
+            nodeStates={nodeStates}
+            edgeStates={edgeStates}
             canvasRef={canvasRef}
           />
         </ReactFlowProvider>
-        <IssuesPanel issues={issues} onHighlight={handleHighlight} onValidate={handleValidate} />
+        {showIssues && <IssuesPanel issues={issues} onHighlight={handleHighlight} onValidate={handleValidate} />}
         <PropertiesPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
-        <MetricsBar nodeCount={nodeCount} totalNodes={Math.max(nodeCount, 12)} metrics={metrics} />
+        <BottomBar
+          isRunning={isRunning}
+          onToggle={toggleSimulation}
+          metrics={metrics}
+          issues={issues}
+          onIssuesClick={() => setShowIssues(v => !v)}
+          selectedNodeId={selectedNodeId}
+          selectedEdgeId={selectedEdgeId}
+          injectChaos={injectChaos}
+          speed={speed}
+          onSpeedChange={handleSpeedChange}
+          traffic={traffic}
+          onTrafficChange={handleTrafficChange}
+          activeNodeCount={activeNodeCount}
+          totalNodeCount={Math.max(nodeCount, 1)}
+        />
       </div>
       <ValidationToastContainer toasts={toasts} onDismiss={dismissToast} />
+      {showPresets && <PresetsModal onClose={() => setShowPresets(false)} onLoad={handlePresetLoad} />}
+      <GuidedTour />
     </AppShell>
   );
 }

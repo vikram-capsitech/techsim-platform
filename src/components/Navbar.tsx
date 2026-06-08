@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Settings, Save, LogOut, Loader2, CheckCircle, Play, Activity } from 'lucide-react';
+import { Bell, Settings, Save, LogOut, Loader2, CheckCircle, Play, Square } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const TABS = [
@@ -91,15 +91,16 @@ export function Navbar({ onSave, onSimulationStart, simulationRunning = false }:
         {onSimulationStart && (
           <button
             onClick={onSimulationStart}
-            disabled={simulationRunning}
             style={{
               ...styles.simBtn,
-              opacity: simulationRunning ? 0.82 : 1,
-              cursor: simulationRunning ? 'default' : 'pointer',
+              background: simulationRunning ? 'rgba(220,38,38,0.16)' : styles.simBtn.background,
+              border: simulationRunning ? '1px solid rgba(248,113,113,0.45)' : styles.simBtn.border,
+              color: simulationRunning ? '#FCA5A5' : styles.simBtn.color,
+              boxShadow: simulationRunning ? '0 0 18px rgba(239,68,68,0.18)' : styles.simBtn.boxShadow,
             }}
           >
-            {simulationRunning ? <Activity size={13} /> : <Play size={13} />}
-            {simulationRunning ? 'Simulation Running' : 'Start Simulation'}
+            {simulationRunning ? <Square size={13} /> : <Play size={13} />}
+            {simulationRunning ? 'Stop Simulation' : 'Start Simulation'}
           </button>
         )}
 

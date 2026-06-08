@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 
 export interface DecodedToken {
   userId: string;
+  _id?: any;
   email: string;
   username: string;
   plan: string;
@@ -26,6 +27,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       throw new Error('JWT_SECRET is not configured on the server');
     }
     const decoded = jwt.verify(token, secret) as DecodedToken;
+    decoded._id = decoded.userId;
     req.user = decoded;
     next();
   } catch (error) {

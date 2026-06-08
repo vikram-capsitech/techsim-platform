@@ -9,7 +9,7 @@ export interface User {
 
 export type EdgeProtocol = 'http' | 'database' | 'cache' | 'queue';
 
-export type IssueSeverity = 'error' | 'warning';
+export type IssueSeverity = 'critical' | 'error' | 'warning' | 'info';
 
 export interface ValidationIssue {
   id: string;

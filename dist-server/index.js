@@ -15,6 +15,7 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const diagrams_1 = __importDefault(require("./routes/diagrams"));
 const scenarios_1 = __importDefault(require("./routes/scenarios"));
 const progress_1 = __importDefault(require("./routes/progress"));
+const ai_1 = __importDefault(require("./routes/ai"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 // Enable CORS options preflight for all routes and apply CORS settings
@@ -32,8 +33,9 @@ app.use('/api/auth', auth_1.default);
 app.use('/api/diagrams', diagrams_1.default);
 app.use('/api/scenarios', scenarios_1.default);
 app.use('/api/progress', progress_1.default);
+app.use('/api/ai', ai_1.default);
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'OK', message: 'TechSim API is healthy' });
 });
 // Global error handler (should be mounted last)

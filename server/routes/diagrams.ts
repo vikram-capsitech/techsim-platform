@@ -4,8 +4,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// Track last auto-save timestamps per user to prevent hammering (rate limit 1 save per 10s)
-const lastSaveTimestamps = new Map<string, number>();
+
 
 // Apply authMiddleware to all diagram endpoints
 router.use(authMiddleware);
@@ -23,6 +22,15 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
     next(error);
   }
 });
+
+// GET /api/diagrams/my route — Returns all diagrams for the logged-in user, sorted by updatedAt desc
+router.get('/my', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const diagrams = await Diagram.find({ userId: req.user!._id })
+    .sort({ updatedAt: -1 })
+    .select('_id title module thumbnailUrl updatedAt forkCount isPublic')
+    .limit(50)
+  res.json(diagrams)
+})
 
 // POST /api/diagrams — create diagram, userId from JWT
 router.post('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -174,53 +182,29 @@ router.post('/:id/fork', async (req: AuthRequest, res: Response, next: NextFunct
   }
 });
 
-// PUT /api/diagrams/:id/autosave — save diagram canvasJson with rate limiting (max 1 per 10s per user)
-router.put('/:id/autosave', async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+// PUT /api/diagrams/:id/autosave
+// Rate limited: max 1 save per 10 seconds per user
+const lastSave = new Map<string, number>()
 
-    const userId = req.user.userId;
-    const now = Date.now();
-    const lastSave = lastSaveTimestamps.get(userId) || 0;
+router.put('/:id/autosave', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const userId = req.user!._id.toString()
+  const now = Date.now()
+  const last = lastSave.get(userId) || 0
 
-    if (now - lastSave < 10000) {
-      const secondsLeft = Math.ceil((10000 - (now - lastSave)) / 1000);
-      return res.status(429).json({
-        error: `Rate limit exceeded. Please wait ${secondsLeft} seconds before auto-saving again.`
-      });
-    }
-
-    const { canvasJson } = req.body;
-    if (!canvasJson) {
-      return res.status(400).json({ error: 'canvasJson is required in body' });
-    }
-
-    const diagram = await Diagram.findById(req.params.id);
-    if (!diagram) {
-      return res.status(404).json({ error: 'Diagram not found' });
-    }
-
-    // Check ownership
-    if (diagram.userId.toString() !== userId) {
-      return res.status(403).json({ error: 'Forbidden. Only the owner can autosave this diagram.' });
-    }
-
-    // Update only the canvasJson field
-    diagram.canvasJson = canvasJson;
-    await diagram.save();
-
-    // Update rate limit timestamp
-    lastSaveTimestamps.set(userId, now);
-
-    return res.status(200).json({
-      success: true,
-      savedAt: new Date()
-    });
-  } catch (error) {
-    next(error);
+  if (now - last < 10000) {
+    return res.json({ success: true, skipped: true, message: 'Rate limited — too soon' })
   }
-});
+
+  lastSave.set(userId, now)
+
+  const diagram = await Diagram.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user!._id },
+    { canvasJson: req.body.canvasJson, updatedAt: new Date() },
+    { new: true }
+  )
+
+  if (!diagram) return res.status(404).json({ error: 'Diagram not found' })
+  res.json({ success: true, savedAt: new Date() })
+})
 
 export default router;

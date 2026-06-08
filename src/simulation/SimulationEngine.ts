@@ -11,6 +11,8 @@ export interface NodeState {
   status: 'healthy' | 'degraded' | 'overloaded' | 'down';
   latency: number;
   errorRate: number;
+  cpuUsage: number;
+  memoryUsage: number;
 }
 
 export interface EdgeState {
@@ -27,7 +29,7 @@ export interface Packet {
   id: string;
   progress: number;
   speed: number;
-  type: 'normal' | 'attack' | 'error';
+  type: 'normal' | 'attack' | 'error' | 'dropped';
   color: string;
 }
 
@@ -38,6 +40,8 @@ export interface SimMetrics {
   p99: number;
   errorRate: number;
   throughput: number;
+  totalPackets: number;
+  droppedPackets: number;
   bottleneck: string | null;
 }
 
@@ -57,6 +61,7 @@ const PACKET_COLORS: Record<Packet['type'], string> = {
   normal: '#06B6D4',
   attack: '#EF4444',
   error: '#F97316',
+  dropped: '#64748B',
 };
 
 interface NodeMeta {
@@ -73,7 +78,14 @@ export class SimulationEngine {
   private lastFrameTime: number;
   private lastMetricsTime: number;
   private surgeMultiplier: number;
+  private speedMultiplier: number;
+  private baseRps: number;
   private attackBurstUntil: number;
+  private totalPackets: number;
+  private droppedPackets: number;
+  private surgeTimer: number;
+  private latencyTimers: Map<string, number>;
+  private partitionTimers: Map<string, number>;
   private subscribers: Set<SimulationListener>;
   private metrics: SimMetrics;
 
@@ -86,7 +98,14 @@ export class SimulationEngine {
     this.lastFrameTime = 0;
     this.lastMetricsTime = 0;
     this.surgeMultiplier = 1;
+    this.speedMultiplier = 1;
+    this.baseRps = BASE_RPS;
     this.attackBurstUntil = 0;
+    this.totalPackets = 0;
+    this.droppedPackets = 0;
+    this.surgeTimer = 0;
+    this.latencyTimers = new Map();
+    this.partitionTimers = new Map();
     this.subscribers = new Set();
     this.metrics = emptyMetrics();
     this.setTopology(nodes, edges);
@@ -110,6 +129,8 @@ export class SimulationEngine {
         status: previous?.status ?? 'healthy',
         latency: previous?.latency ?? defaults.latency,
         errorRate: previous?.errorRate ?? 0,
+        cpuUsage: previous?.cpuUsage ?? 0,
+        memoryUsage: previous?.memoryUsage ?? 0,
       });
       this.nodeMeta.set(node.id, {
         category: data.category ?? null,
@@ -155,11 +176,16 @@ export class SimulationEngine {
     this.isRunning = false;
     this.surgeMultiplier = 1;
     this.attackBurstUntil = 0;
+    this.totalPackets = 0;
+    this.droppedPackets = 0;
+    this.clearChaosTimers();
     for (const node of this.nodes.values()) {
       node.currentLoad = 0;
       node.queueDepth = 0;
-      if (node.status !== 'down') node.status = 'healthy';
-      node.errorRate = node.status === 'down' ? 1 : 0;
+      node.status = 'healthy';
+      node.errorRate = 0;
+      node.cpuUsage = 0;
+      node.memoryUsage = 0;
     }
     for (const edge of this.edges.values()) {
       edge.bandwidth = 0;
@@ -183,6 +209,8 @@ export class SimulationEngine {
     node.currentLoad = 0;
     node.queueDepth = 0;
     node.errorRate = 1;
+    node.cpuUsage = 0;
+    node.memoryUsage = 0;
     for (const edge of this.edges.values()) {
       if (edge.source === nodeId || edge.target === nodeId) {
         edge.bandwidth = 0;
@@ -196,7 +224,20 @@ export class SimulationEngine {
   spikeLatency(edgeId: string, ms: number): void {
     const edge = this.edges.get(edgeId);
     if (!edge) return;
-    edge.latency = Math.max(0, ms);
+    if (this.latencyTimers.has(edgeId)) {
+      window.clearTimeout(this.latencyTimers.get(edgeId));
+    }
+    edge.latency = Math.max(0, edge.latency + ms);
+    const timer = window.setTimeout(() => {
+      const activeEdge = this.edges.get(edgeId);
+      if (activeEdge) {
+        activeEdge.latency = Math.max(0, activeEdge.latency - ms);
+        this.metrics = this.calculateMetrics();
+        this.emit();
+      }
+      this.latencyTimers.delete(edgeId);
+    }, 8000);
+    this.latencyTimers.set(edgeId, timer);
     this.metrics = this.calculateMetrics();
     this.emit();
   }
@@ -204,6 +245,13 @@ export class SimulationEngine {
   trafficSurge(multiplier: number): void {
     this.surgeMultiplier = Math.max(0, multiplier);
     this.attackBurstUntil = performance.now() + 2500;
+    if (this.surgeTimer) window.clearTimeout(this.surgeTimer);
+    this.surgeTimer = window.setTimeout(() => {
+      this.surgeMultiplier = 1;
+      this.attackBurstUntil = 0;
+      this.metrics = this.calculateMetrics();
+      this.emit();
+    }, 10000);
   }
 
   networkPartition(edgeId: string): void {
@@ -212,6 +260,19 @@ export class SimulationEngine {
     edge.isPartitioned = true;
     edge.bandwidth = 0;
     edge.packets = [];
+    if (this.partitionTimers.has(edgeId)) {
+      window.clearTimeout(this.partitionTimers.get(edgeId));
+    }
+    const timer = window.setTimeout(() => {
+      const activeEdge = this.edges.get(edgeId);
+      if (activeEdge) {
+        activeEdge.isPartitioned = false;
+        this.metrics = this.calculateMetrics();
+        this.emit();
+      }
+      this.partitionTimers.delete(edgeId);
+    }, 12000);
+    this.partitionTimers.set(edgeId, timer);
     this.metrics = this.calculateMetrics();
     this.emit();
   }
@@ -222,8 +283,19 @@ export class SimulationEngine {
     node.status = 'healthy';
     node.errorRate = 0;
     node.queueDepth = 0;
+    node.cpuUsage = 20;
+    node.memoryUsage = 18;
     this.metrics = this.calculateMetrics();
     this.emit();
+  }
+
+  setSpeed(v: number): void {
+    this.speedMultiplier = Math.max(0, v);
+  }
+
+  setBaseRPS(rps: number): void {
+    this.baseRps = Math.max(0, rps);
+    if (this.isRunning) { this.metrics = this.calculateMetrics(); this.emit(); }
   }
 
   healEdge(edgeId: string): void {
@@ -246,7 +318,7 @@ export class SimulationEngine {
 
   private loop = (now: number): void => {
     if (!this.isRunning) return;
-    const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1);
+    const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1) * this.speedMultiplier;
     this.lastFrameTime = now;
     this.step(dt, now);
 
@@ -263,7 +335,7 @@ export class SimulationEngine {
     const incoming = new Map<string, number>();
     const edgeLoads = new Map<string, number>();
     const sources = this.sourceNodeIds();
-    const basePerSource = sources.length > 0 ? (BASE_RPS * this.surgeMultiplier) / sources.length : 0;
+    const basePerSource = sources.length > 0 ? (this.baseRps * this.surgeMultiplier) / sources.length : 0;
 
     for (const sourceId of sources) {
       incoming.set(sourceId, (incoming.get(sourceId) ?? 0) + basePerSource);
@@ -279,6 +351,8 @@ export class SimulationEngine {
         node.currentLoad = smooth(node.currentLoad, 0, dt, 8);
         node.queueDepth = 0;
         node.errorRate = 1;
+        node.cpuUsage = 0;
+        node.memoryUsage = 0;
         continue;
       }
 
@@ -332,14 +406,18 @@ export class SimulationEngine {
       node.status = 'overloaded';
       node.errorRate = clamp((pressure - 1.2) * 0.22, 0.08, 0.65);
       node.latency = smooth(node.latency, node.latency * 1.01 + 4, 0.016, 2);
+      node.cpuUsage = clamp(92 + Math.random() * 8, 0, 100);
     } else if (pressure > 1) {
       node.status = 'degraded';
       node.errorRate = clamp((pressure - 1) * 0.18, 0.015, 0.18);
       node.latency = smooth(node.latency, node.latency * 1.005 + 1, 0.016, 2);
+      node.cpuUsage = clamp(62 + (pressure - 1) * 70 + Math.random() * 8, 0, 92);
     } else {
       node.status = 'healthy';
       node.errorRate = smooth(node.errorRate, 0, 0.016, 3);
+      node.cpuUsage = clamp(18 + pressure * 48 + Math.random() * 5, 0, 68);
     }
+    node.memoryUsage = clamp(node.cpuUsage * 0.72 + node.queueDepth / Math.max(node.capacity, 1) * 18 + Math.random() * 8, 8, 100);
   }
 
   private cacheReduction(sourceId: string, targetId: string): number {
@@ -369,10 +447,13 @@ export class SimulationEngine {
     const spawnCount = Math.floor(spawnBudget + Math.random());
     for (let index = 0; index < spawnCount && edge.packets.length < MAX_PACKETS_PER_EDGE; index += 1) {
       const errorPacket = (target?.errorRate ?? 0) > Math.random() && Math.random() < 0.35;
-      const type: Packet['type'] = isAttackBurst ? 'attack' : errorPacket ? 'error' : 'normal';
+      const droppedPacket = target?.status === 'overloaded' && Math.random() < 0.08;
+      const type: Packet['type'] = isAttackBurst ? 'attack' : droppedPacket ? 'dropped' : errorPacket ? 'error' : 'normal';
       const speed = type === 'attack'
         ? 1.8
         : clamp(60 / Math.max(edge.latency, 8), 0.08, 1.15);
+      this.totalPackets += 1;
+      if (type === 'dropped') this.droppedPackets += 1;
       edge.packets.push({
         id: `pkt_${edge.id}_${Math.floor(now)}_${index}_${Math.random().toString(36).slice(2, 7)}`,
         progress: 0,
@@ -399,8 +480,9 @@ export class SimulationEngine {
     const nodes = [...this.nodes.values()];
     const edges = [...this.edges.values()];
     const throughput = edges.reduce((sum, edge) => sum + edge.bandwidth, 0);
+    const visiblePackets = edges.reduce((sum, edge) => sum + edge.packets.length, 0);
     const globalRPS = this.sourceNodeIds().length > 0 && this.isRunning
-      ? BASE_RPS * this.surgeMultiplier
+      ? this.baseRps * this.surgeMultiplier * this.speedMultiplier
       : throughput;
     const weightedErrors = nodes.reduce((sum, node) => sum + node.currentLoad * node.errorRate, 0);
     const totalLoad = nodes.reduce((sum, node) => sum + node.currentLoad, 0);
@@ -419,6 +501,8 @@ export class SimulationEngine {
       p99: percentile(latencies, 0.99),
       errorRate,
       throughput,
+      totalPackets: this.totalPackets + visiblePackets,
+      droppedPackets: this.droppedPackets + Math.floor(totalLoad * errorRate * 0.02),
       bottleneck: bottleneck && stressScore(bottleneck) > 0.65 ? bottleneck.id : null,
     };
   }
@@ -488,6 +572,15 @@ export class SimulationEngine {
     const snapshot = this.snapshot();
     for (const listener of this.subscribers) listener(snapshot);
   }
+
+  private clearChaosTimers(): void {
+    if (this.surgeTimer) window.clearTimeout(this.surgeTimer);
+    this.surgeTimer = 0;
+    for (const timer of this.latencyTimers.values()) window.clearTimeout(timer);
+    for (const timer of this.partitionTimers.values()) window.clearTimeout(timer);
+    this.latencyTimers.clear();
+    this.partitionTimers.clear();
+  }
 }
 
 function defaultsForNode(data: TechNodeData): Pick<NodeState, 'capacity' | 'latency'> {
@@ -551,6 +644,8 @@ function emptyMetrics(): SimMetrics {
     p99: 0,
     errorRate: 0,
     throughput: 0,
+    totalPackets: 0,
+    droppedPackets: 0,
     bottleneck: null,
   };
 }

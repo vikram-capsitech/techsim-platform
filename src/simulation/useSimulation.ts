@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Edge, Node } from '@xyflow/react';
 import {
   SimulationEngine,
+  type EdgeState,
+  type NodeState,
   type SimMetrics,
   type SimulationSnapshot,
 } from './SimulationEngine';
@@ -20,7 +22,11 @@ interface UseSimulationResult {
   start: () => void;
   stop: () => void;
   pause: () => void;
-  injectChaos: SimulationControls;
+  setSpeed: (v: number) => void;
+  setBaseRPS: (rps: number) => void;
+  injectChaos: SimulationControls & ((type: string, targetId: string) => void);
+  nodeStates: Map<string, NodeState>;
+  edgeStates: Map<string, EdgeState>;
   snapshot: SimulationSnapshot;
 }
 
@@ -32,6 +38,8 @@ const INITIAL_SNAPSHOT: SimulationSnapshot = {
     p99: 0,
     errorRate: 0,
     throughput: 0,
+    totalPackets: 0,
+    droppedPackets: 0,
     bottleneck: null,
   },
   nodes: [],
@@ -64,14 +72,46 @@ export function useSimulation(nodes: Node[], edges: Edge[]): UseSimulationResult
   const start = useCallback(() => engineRef.current?.start(), []);
   const stop = useCallback(() => engineRef.current?.stop(), []);
   const pause = useCallback(() => engineRef.current?.pause(), []);
+  const setSpeed = useCallback((v: number) => engineRef.current?.setSpeed(v), []);
+  const setBaseRPS = useCallback((rps: number) => engineRef.current?.setBaseRPS(rps), []);
 
-  const injectChaos = useMemo<SimulationControls>(() => ({
-    crashNode: (nodeId: string) => engineRef.current?.crashNode(nodeId),
-    spikeLatency: (edgeId: string, ms: number) => engineRef.current?.spikeLatency(edgeId, ms),
-    trafficSurge: (multiplier: number) => engineRef.current?.trafficSurge(multiplier),
-    networkPartition: (edgeId: string) => engineRef.current?.networkPartition(edgeId),
-    healNode: (nodeId: string) => engineRef.current?.healNode(nodeId),
-  }), []);
+  const injectChaos = useMemo<UseSimulationResult['injectChaos']>(() => {
+    const dispatch = ((type: string, targetId: string) => {
+      switch (type) {
+        case 'crash':
+          engineRef.current?.crashNode(targetId);
+          break;
+        case 'heal':
+          engineRef.current?.healNode(targetId);
+          break;
+        case 'surge':
+          engineRef.current?.trafficSurge(10);
+          break;
+        case 'latency':
+          engineRef.current?.spikeLatency(targetId, 500);
+          break;
+        case 'partition':
+          engineRef.current?.networkPartition(targetId);
+          break;
+      }
+    }) as UseSimulationResult['injectChaos'];
+
+    dispatch.crashNode = (nodeId: string) => engineRef.current?.crashNode(nodeId);
+    dispatch.spikeLatency = (edgeId: string, ms: number) => engineRef.current?.spikeLatency(edgeId, ms);
+    dispatch.trafficSurge = (multiplier: number) => engineRef.current?.trafficSurge(multiplier);
+    dispatch.networkPartition = (edgeId: string) => engineRef.current?.networkPartition(edgeId);
+    dispatch.healNode = (nodeId: string) => engineRef.current?.healNode(nodeId);
+    return dispatch;
+  }, []);
+
+  const nodeStates = useMemo(
+    () => new Map(snapshot.nodes.map((node) => [node.id, node])),
+    [snapshot.nodes],
+  );
+  const edgeStates = useMemo(
+    () => new Map(snapshot.edges.map((edge) => [edge.id, edge])),
+    [snapshot.edges],
+  );
 
   return {
     metrics: snapshot.metrics,
@@ -79,7 +119,11 @@ export function useSimulation(nodes: Node[], edges: Edge[]): UseSimulationResult
     start,
     stop,
     pause,
+    setSpeed,
+    setBaseRPS,
     injectChaos,
+    nodeStates,
+    edgeStates,
     snapshot,
   };
 }

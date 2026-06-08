@@ -1,11 +1,22 @@
 import { memo, useState } from 'react';
-import { getSmoothStepPath, type EdgeProps, type Edge, EdgeLabelRenderer } from '@xyflow/react';
+import {
+  getSmoothStepPath,
+  getStraightPath,
+  getBezierPath,
+  type EdgeProps,
+  type Edge,
+  EdgeLabelRenderer,
+  useReactFlow,
+} from '@xyflow/react';
 import type { EdgeProtocol } from '../types';
+
+export type EdgeRoutingType = 'smoothstep' | 'straight' | 'bezier';
 
 export interface GlowEdgeData {
   color?: string;
   protocol?: EdgeProtocol;
   invalid?: boolean;
+  edgeType?: EdgeRoutingType;
   [key: string]: unknown;
 }
 
@@ -20,6 +31,12 @@ const PROTOCOL_META: Record<EdgeProtocol, { color: string; label: string; dashSp
 
 const INVALID_COLOR = '#EF4444';
 
+const ROUTING_OPTIONS: { type: EdgeRoutingType; icon: string; label: string }[] = [
+  { type: 'smoothstep', icon: '⌒', label: 'Smooth' },
+  { type: 'straight',   icon: '—', label: 'Straight' },
+  { type: 'bezier',     icon: '∿', label: 'Bezier' },
+];
+
 export const GlowEdge = memo(function GlowEdge({
   id,
   sourceX,
@@ -32,23 +49,41 @@ export const GlowEdge = memo(function GlowEdge({
   selected,
 }: EdgeProps) {
   const [hovered, setHovered] = useState(false);
+  const { setEdges } = useReactFlow();
 
   const edgeData = data as GlowEdgeData;
   const protocol: EdgeProtocol = edgeData?.protocol ?? 'http';
   const invalid = edgeData?.invalid ?? false;
+  const edgeType: EdgeRoutingType = (edgeData?.edgeType as EdgeRoutingType) ?? 'smoothstep';
 
   const meta = PROTOCOL_META[protocol];
   const baseColor = invalid ? INVALID_COLOR : (edgeData?.color ?? meta.color);
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-    borderRadius: 14,
-  });
+  // Compute path based on routing type
+  let edgePath: string;
+  let labelX: number;
+  let labelY: number;
+
+  if (edgeType === 'straight') {
+    [edgePath, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
+  } else if (edgeType === 'bezier') {
+    [edgePath, labelX, labelY] = getBezierPath({
+      sourceX, sourceY, sourcePosition,
+      targetX, targetY, targetPosition,
+    });
+  } else {
+    [edgePath, labelX, labelY] = getSmoothStepPath({
+      sourceX, sourceY, sourcePosition,
+      targetX, targetY, targetPosition,
+      borderRadius: 14,
+    });
+  }
+
+  const changeEdgeType = (type: EdgeRoutingType) => {
+    setEdges(es => es.map(e =>
+      e.id === id ? { ...e, data: { ...e.data, edgeType: type } } : e,
+    ));
+  };
 
   const filterId = `glow-${id}`;
   const intensity = selected || hovered ? 3 : invalid ? 2.5 : 1.5;
@@ -74,7 +109,7 @@ export const GlowEdge = memo(function GlowEdge({
         </marker>
       </defs>
 
-      {/* Invisible wide hit area for hover */}
+      {/* Invisible wide hit area for hover/click */}
       <path
         d={edgePath}
         fill="none"
@@ -128,7 +163,76 @@ export const GlowEdge = memo(function GlowEdge({
         />
       </path>
 
-      {/* Hover / selected protocol label */}
+      {/* Edge routing toolbar — shown when edge is selected */}
+      {selected && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, calc(-100% - 10px)) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'all',
+              zIndex: 20,
+            }}
+            className="nodrag nopan"
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: 'rgba(10,10,15,0.96)',
+                border: '1px solid rgba(124,58,237,0.45)',
+                borderRadius: 8,
+                padding: '3px 4px',
+                gap: 2,
+                boxShadow: '0 4px 24px rgba(0,0,0,0.7), 0 0 0 1px rgba(124,58,237,0.1)',
+              }}
+            >
+              {ROUTING_OPTIONS.map(({ type, icon, label }) => {
+                const isActive = edgeType === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={(e) => { e.stopPropagation(); changeEdgeType(type); }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 9px',
+                      borderRadius: 5,
+                      border: isActive ? '1px solid rgba(124,58,237,0.6)' : '1px solid transparent',
+                      background: isActive ? 'rgba(124,58,237,0.22)' : 'transparent',
+                      color: isActive ? '#A78BFA' : '#64748B',
+                      fontSize: 11,
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontWeight: isActive ? 600 : 400,
+                      cursor: 'pointer',
+                      transition: 'all 0.12s',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'rgba(124,58,237,0.1)';
+                        e.currentTarget.style.color = '#C4B5FD';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#64748B';
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: 13 }}>{icon}</span>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+
+      {/* Protocol label — shown on hover or select */}
       {(hovered || selected) && (
         <EdgeLabelRenderer>
           <div

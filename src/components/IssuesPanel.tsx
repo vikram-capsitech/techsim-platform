@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { XCircle, AlertTriangle, ChevronDown, ChevronUp, Play } from 'lucide-react';
+import { XCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Play } from 'lucide-react';
 import type { ValidationIssue } from '../types';
 
 interface IssuesPanelProps {
@@ -10,8 +10,9 @@ interface IssuesPanelProps {
 
 export function IssuesPanel({ issues, onHighlight, onValidate }: IssuesPanelProps) {
   const [expanded, setExpanded] = useState(true);
-  const errors   = issues.filter((i) => i.severity === 'error');
-  const warnings = issues.filter((i) => i.severity === 'warning');
+  const errors   = issues.filter(i => i.severity === 'critical' || i.severity === 'error');
+  const warnings = issues.filter(i => i.severity === 'warning');
+  const infos    = issues.filter(i => i.severity === 'info');
 
   return (
     <div
@@ -68,6 +69,17 @@ export function IssuesPanel({ issues, onHighlight, onValidate }: IssuesPanelProp
             <AlertTriangle size={9} /> {warnings.length}
           </span>
         )}
+        {infos.length > 0 && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+            borderRadius: 5, padding: '1px 7px',
+            fontSize: 10.5, fontWeight: 700, color: '#818CF8',
+            fontFamily: "'IBM Plex Mono', monospace",
+          }}>
+            <Info size={9} /> {infos.length}
+          </span>
+        )}
 
         <button
           onClick={(e) => { e.stopPropagation(); onValidate(); }}
@@ -114,9 +126,10 @@ export function IssuesPanel({ issues, onHighlight, onValidate }: IssuesPanelProp
 }
 
 function IssueRow({ issue, onHighlight }: { issue: ValidationIssue; onHighlight: (i: ValidationIssue) => void }) {
-  const isError = issue.severity === 'error';
-  const color = isError ? '#EF4444' : '#EAB308';
-  const Icon = isError ? XCircle : AlertTriangle;
+  const isCritical = issue.severity === 'critical' || issue.severity === 'error';
+  const isInfo = issue.severity === 'info';
+  const color = isCritical ? '#EF4444' : isInfo ? '#818CF8' : '#EAB308';
+  const Icon  = isCritical ? XCircle : isInfo ? Info : AlertTriangle;
 
   return (
     <button
