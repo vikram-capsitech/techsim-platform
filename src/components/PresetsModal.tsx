@@ -27,8 +27,8 @@ function n(
 function e(source: string, target: string, protocol: 'http' | 'database' | 'cache' | 'queue' = 'http'): Edge {
   return {
     id: `${source}-${target}`,
-    source, target, type: 'glow',
-    data: { protocol },
+    source, target, type: 'glowEdge',
+    data: { protocol, edgeType: 'bezier' },
   };
 }
 

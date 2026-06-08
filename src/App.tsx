@@ -164,7 +164,7 @@ function CanvasPage() {
             canvasRef={canvasRef}
           />
         </ReactFlowProvider>
-        {showIssues && <IssuesPanel issues={issues} onHighlight={handleHighlight} onValidate={handleValidate} />}
+        {showIssues && <IssuesPanel issues={issues} onHighlight={handleHighlight} onValidate={handleValidate} onClose={() => setShowIssues(false)} />}
         <PropertiesPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
         <BottomBar
           isRunning={isRunning}

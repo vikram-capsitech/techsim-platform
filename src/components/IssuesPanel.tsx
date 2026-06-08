@@ -6,9 +6,10 @@ interface IssuesPanelProps {
   issues: ValidationIssue[];
   onHighlight: (issue: ValidationIssue) => void;
   onValidate: () => void;
+  onClose?: () => void;
 }
 
-export function IssuesPanel({ issues, onHighlight, onValidate }: IssuesPanelProps) {
+export function IssuesPanel({ issues, onHighlight, onValidate, onClose }: IssuesPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const errors   = issues.filter(i => i.severity === 'critical' || i.severity === 'error');
   const warnings = issues.filter(i => i.severity === 'warning');
@@ -101,6 +102,33 @@ export function IssuesPanel({ issues, onHighlight, onValidate }: IssuesPanelProp
           ? <ChevronDown size={13} color="var(--text-muted)" />
           : <ChevronUp size={13} color="var(--text-muted)" />
         }
+
+        {onClose && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            title="Close"
+            style={{
+              width: 20, height: 20, borderRadius: 5,
+              background: 'transparent', border: '1px solid transparent',
+              color: 'var(--text-muted)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 700, marginLeft: 2,
+              transition: 'all 0.1s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(239,68,68,0.12)';
+              e.currentTarget.style.color = '#EF4444';
+              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--text-muted)';
+              e.currentTarget.style.borderColor = 'transparent';
+            }}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Issue list */}

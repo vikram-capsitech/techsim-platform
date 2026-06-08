@@ -138,8 +138,8 @@ export function Canvas({
   }, []);
 
   // Default routing type for newly drawn edges
-  const [defaultEdgeType, setDefaultEdgeType] = useState<EdgeRoutingType>('smoothstep');
-  const defaultEdgeTypeRef = useRef<EdgeRoutingType>('smoothstep');
+  const [defaultEdgeType, setDefaultEdgeType] = useState<EdgeRoutingType>('bezier');
+  const defaultEdgeTypeRef = useRef<EdgeRoutingType>('bezier');
   const updateDefaultEdgeType = (t: EdgeRoutingType) => {
     defaultEdgeTypeRef.current = t;
     setDefaultEdgeType(t);

@@ -54,7 +54,7 @@ export const GlowEdge = memo(function GlowEdge({
   const edgeData = data as GlowEdgeData;
   const protocol: EdgeProtocol = edgeData?.protocol ?? 'http';
   const invalid = edgeData?.invalid ?? false;
-  const edgeType: EdgeRoutingType = (edgeData?.edgeType as EdgeRoutingType) ?? 'smoothstep';
+  const edgeType: EdgeRoutingType = (edgeData?.edgeType as EdgeRoutingType) ?? 'bezier';
 
   const meta = PROTOCOL_META[protocol];
   const baseColor = invalid ? INVALID_COLOR : (edgeData?.color ?? meta.color);
