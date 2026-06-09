@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Edge, Node } from '@xyflow/react';
+import type { ResolvedTheme } from '../context/ThemeContext';
 import {
   SimulationEngine,
   type EdgeState,
@@ -24,6 +25,7 @@ interface UseSimulationResult {
   pause: () => void;
   setSpeed: (v: number) => void;
   setBaseRPS: (rps: number) => void;
+  setTraffic: (traffic: number) => void;
   injectChaos: SimulationControls & ((type: string, targetId: string) => void);
   nodeStates: Map<string, NodeState>;
   edgeStates: Map<string, EdgeState>;
@@ -47,13 +49,17 @@ const INITIAL_SNAPSHOT: SimulationSnapshot = {
   isRunning: false,
 };
 
-export function useSimulation(nodes: Node[], edges: Edge[]): UseSimulationResult {
+export function useSimulation(nodes: Node[], edges: Edge[], theme: ResolvedTheme = 'dark'): UseSimulationResult {
   const engineRef = useRef<SimulationEngine | null>(null);
   const [snapshot, setSnapshot] = useState<SimulationSnapshot>(INITIAL_SNAPSHOT);
 
   if (engineRef.current === null) {
-    engineRef.current = new SimulationEngine(nodes, edges);
+    engineRef.current = new SimulationEngine(nodes, edges, theme);
   }
+
+  useEffect(() => {
+    engineRef.current?.setTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const engine = engineRef.current;
@@ -74,6 +80,9 @@ export function useSimulation(nodes: Node[], edges: Edge[]): UseSimulationResult
   const pause = useCallback(() => engineRef.current?.pause(), []);
   const setSpeed = useCallback((v: number) => engineRef.current?.setSpeed(v), []);
   const setBaseRPS = useCallback((rps: number) => engineRef.current?.setBaseRPS(rps), []);
+  const setTraffic = useCallback((traffic: number) => {
+    engineRef.current?.setTrafficMultiplier(traffic);
+  }, []);
 
   const injectChaos = useMemo<UseSimulationResult['injectChaos']>(() => {
     const dispatch = ((type: string, targetId: string) => {
@@ -121,6 +130,7 @@ export function useSimulation(nodes: Node[], edges: Edge[]): UseSimulationResult
     pause,
     setSpeed,
     setBaseRPS,
+    setTraffic,
     injectChaos,
     nodeStates,
     edgeStates,

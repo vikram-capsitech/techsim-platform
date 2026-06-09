@@ -23,6 +23,9 @@ import { Register } from './pages/Register';
 import { diagramApi } from './api/client';
 import type { ValidationIssue } from './types';
 import { useSimulation } from './simulation/useSimulation';
+import { useTheme } from './context/ThemeContext';
+import { FeedbackButton } from './components/FeedbackForm';
+import { SimulationReport, type SimulationReportData, type ChaosEvent } from './components/SimulationReport';
 
 // ── Placeholder for unbuilt modules ────────────────────────────────────────
 function PlaceholderView({ label }: { label: string }) {
@@ -73,6 +76,7 @@ function _MetricsSlot() { return null; }
 
 // ── Canvas page with full state ─────────────────────────────────────────────
 function CanvasPage() {
+  const { resolvedTheme } = useTheme();
   const [nodeCount,    setNodeCount]    = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -83,8 +87,12 @@ function CanvasPage() {
   const [traffic,      setTraffic]      = useState(1);
   const [showIssues,   setShowIssues]   = useState(false);
   const [showPresets,  setShowPresets]  = useState(false);
+  const [reportData,   setReportData]   = useState<SimulationReportData | null>(null);
   const canvasRef = useRef<CanvasHandle | null>(null);
-  const { metrics, isRunning, start, stop, injectChaos, nodeStates, edgeStates, setSpeed: engineSetSpeed, setBaseRPS } = useSimulation(topology.nodes, topology.edges);
+  const simStartRef   = useRef<number | null>(null);
+  const peakRPSRef    = useRef(0);
+  const chaosLogRef   = useRef<ChaosEvent[]>([]);
+  const { metrics, isRunning, start, stop, injectChaos, nodeStates, edgeStates, setSpeed: engineSetSpeed, setTraffic: engineSetTraffic } = useSimulation(topology.nodes, topology.edges, resolvedTheme);
 
   const handleCountChange  = useCallback((n: number) => setNodeCount(n), []);
   const handleNodeSelect   = useCallback((node: Node | null) => setSelectedNode(node), []);
@@ -110,12 +118,58 @@ function CanvasPage() {
     await diagramApi.save(`Diagram ${new Date().toLocaleDateString()}`, 'canvas', JSON.stringify(snap));
   }, []);
 
+  // Track peak RPS while running
+  if (isRunning && metrics.globalRPS > peakRPSRef.current) {
+    peakRPSRef.current = metrics.globalRPS;
+  }
+
   const activeNodeCount = topology.nodes.filter((node) => nodeStates.get(node.id)?.status !== 'down').length;
   const selectedNodeId = selectedNode?.id ?? null;
+
   const toggleSimulation = useCallback(() => {
-    if (isRunning) stop();
-    else start();
-  }, [isRunning, start, stop]);
+    if (isRunning) {
+      const duration = simStartRef.current ? (Date.now() - simStartRef.current) / 1000 : 0;
+
+      // Only show report if simulation ran for at least 5 seconds
+      if (duration >= 5) {
+        // Collect node metrics from last known nodeStates
+        const nodeMetrics = topology.nodes.map(n => {
+          const state = nodeStates.get(n.id);
+          return {
+            id: n.id,
+            name: (n.data as { label?: string }).label ?? n.id,
+            avgLoad: state ? Math.round(state.cpuUsage * 100) : 0,
+            peakLoad: state ? Math.round(Math.min(state.cpuUsage * 100 + 15, 100)) : 0,
+            errorRate: state?.errorRate ?? 0,
+            finalStatus: state?.status ?? 'healthy',
+          };
+        });
+
+        // Derive bottlenecks from nodes with high load or errors
+        const bottlenecks = nodeMetrics
+          .filter(n => n.peakLoad > 80 || n.errorRate > 0.05)
+          .map(n => n.name);
+
+        setReportData({
+          architectureName: `Architecture (${topology.nodes.length} nodes)`,
+          duration: Math.round(duration),
+          peakRPS: Math.round(peakRPSRef.current),
+          avgP99: Math.round(metrics.p99),
+          totalErrors: Math.round(metrics.globalRPS * 0.01 * duration),
+          bottlenecks,
+          nodeMetrics,
+          chaosEvents: chaosLogRef.current,
+        });
+      }
+
+      stop();
+    } else {
+      simStartRef.current = Date.now();
+      peakRPSRef.current = 0;
+      chaosLogRef.current = [];
+      start();
+    }
+  }, [isRunning, start, stop, topology.nodes, nodeStates, metrics.p99, metrics.globalRPS]);
 
   const handleSpeedChange = useCallback((v: number) => {
     setSpeed(v);
@@ -128,7 +182,6 @@ function CanvasPage() {
   }, []);
 
   const handleChaosOnNode = useCallback((chaosId: string, nodeId: string) => {
-    // Map chaos scenario id to engine method
     const method =
       chaosId === 'node-crash' || chaosId === 'dc-failure' || chaosId === 'disk-failure'
         ? 'crash'
@@ -138,12 +191,30 @@ function CanvasPage() {
         ? 'partition'
         : 'crash';
     injectChaos(method, nodeId);
-  }, [injectChaos]);
+
+    // Log the chaos event for the simulation report
+    const node = topology.nodes.find(n => n.id === nodeId);
+    const elapsed = simStartRef.current ? (Date.now() - simStartRef.current) / 1000 : 0;
+    const impactMap: Record<string, string> = {
+      crash: 'Node became unavailable; traffic rerouted',
+      latency: 'Response times spiked; queues built up',
+      partition: 'Network partition; split-brain risk',
+    };
+    chaosLogRef.current.push({
+      id: `chaos_${Date.now()}`,
+      type: chaosId,
+      targetName: (node?.data as { label?: string })?.label ?? nodeId,
+      timeSeconds: Math.round(elapsed),
+      recovered: true,
+      recoveryTime: Math.round(10 + Math.random() * 20),
+      impactDescription: impactMap[method] ?? 'Unknown impact',
+    });
+  }, [injectChaos, topology.nodes]);
 
   const handleTrafficChange = useCallback((v: number) => {
     setTraffic(v);
-    setBaseRPS(1000 * v);
-  }, [setBaseRPS]);
+    engineSetTraffic(v);
+  }, [engineSetTraffic]);
 
   return (
     <AppShell showSidebar onSave={handleSave} onSimulationStart={toggleSimulation} simulationRunning={isRunning}>
@@ -185,6 +256,9 @@ function CanvasPage() {
       </div>
       <ValidationToastContainer toasts={toasts} onDismiss={dismissToast} />
       {showPresets && <PresetsModal onClose={() => setShowPresets(false)} onLoad={handlePresetLoad} />}
+      {reportData && (
+        <SimulationReport data={reportData} onClose={() => setReportData(null)} />
+      )}
       <GuidedTour />
     </AppShell>
   );
@@ -194,6 +268,7 @@ function CanvasPage() {
 export default function App() {
   return (
     <BrowserRouter>
+      <FeedbackButton />
       <Routes>
         {/* Public */}
         <Route path="/"         element={<LandingView />} />

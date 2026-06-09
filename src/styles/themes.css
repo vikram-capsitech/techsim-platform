@@ -1,0 +1,72 @@
+/* ── Dark theme (explicit, mirrors :root defaults) ─────────────────────────── */
+[data-theme='dark'] {
+  --bg:             #0D0D10;
+  --sidebar-bg:     #111116;
+  --panel-bg:       #141419;
+  --card-bg:        #1A1A24;
+  --card-hover:     #20202E;
+  --input-bg:       #0D0D14;
+
+  --border:         #252535;
+  --border-dim:     #1C1C28;
+  --border-bright:  #303048;
+
+  --text:           #E2E8F0;
+  --text-dim:       #64748B;
+  --text-muted:     #3A3A52;
+
+  --accent:         #7C3AED;
+  --accent-bright:  #8B5CF6;
+  --accent-glow:    rgba(124,58,237,0.35);
+}
+
+/* ── Light theme ────────────────────────────────────────────────────────────── */
+[data-theme='light'] {
+  --bg:             #F8FAFC;
+  --sidebar-bg:     #FFFFFF;
+  --panel-bg:       #FFFFFF;
+  --card-bg:        #F8FAFC;
+  --card-hover:     #EEF2F7;
+  --input-bg:       #F1F5F9;
+
+  --border:         #E2E8F0;
+  --border-dim:     #CBD5E1;
+  --border-bright:  #94A3B8;
+
+  --text:           #0F172A;
+  --text-dim:       #64748B;
+  --text-muted:     #94A3B8;
+
+  --accent:         #7C3AED;
+  --accent-bright:  #8B5CF6;
+  --accent-glow:    rgba(124,58,237,0.20);
+}
+
+/* ── React Flow overrides per theme ─────────────────────────────────────────── */
+[data-theme='light'] .react-flow__background {
+  background: #F8FAFC !important;
+}
+[data-theme='light'] .react-flow__controls {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+[data-theme='light'] .react-flow__controls-button {
+  border-bottom-color: #E2E8F0 !important;
+  fill: #64748B !important;
+}
+[data-theme='light'] .react-flow__controls-button:hover {
+  background: #F1F5F9 !important;
+  fill: #0F172A !important;
+}
+[data-theme='light'] .react-flow__minimap {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+[data-theme='light'] .react-flow__minimap-mask {
+  fill: rgba(248,250,252,0.75) !important;
+}
+
+/* ── Light theme: body-level transitions ────────────────────────────────────── */
+body {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}

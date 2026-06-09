@@ -21,6 +21,8 @@ import { TechNode, type TechNodeData } from './TechNode';
 import { GlowEdge, type EdgeRoutingType } from './GlowEdge';
 import { AIGeneratorPanel } from './AIGeneratorPanel';
 import { NodeSettingsPanel } from './NodeSettingsPanel';
+import { KnowledgePanel } from './KnowledgePanel';
+import { useTheme } from '../context/ThemeContext';
 import { CATEGORY_META, type Category } from '../data/nodes';
 import { validateArchitecture, invalidEdgeIds } from '../engine/validator';
 import type { EdgeProtocol, ValidationIssue } from '../types';
@@ -118,6 +120,7 @@ export function Canvas({
 }: CanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const { resolvedTheme } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const prevIssueCount = useRef(0);
@@ -127,6 +130,7 @@ export function Canvas({
 
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [settingsNodeId, setSettingsNodeId] = useState<string | null>(null);
+  const [knowledgeTarget, setKnowledgeTarget] = useState<{ nodeTypeId: string; label: string } | null>(null);
 
   // Listen for gear-icon open-settings events dispatched by TechNode
   useEffect(() => {
@@ -135,6 +139,16 @@ export function Canvas({
     };
     window.addEventListener('node-settings-open', handler);
     return () => window.removeEventListener('node-settings-open', handler);
+  }, []);
+
+  // Listen for 📚 learn button events dispatched by TechNode
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeTypeId, label } = (e as CustomEvent<{ nodeTypeId: string; label: string }>).detail;
+      setKnowledgeTarget({ nodeTypeId, label });
+    };
+    window.addEventListener('node-knowledge-open', handler);
+    return () => window.removeEventListener('node-knowledge-open', handler);
   }, []);
 
   // Default routing type for newly drawn edges
@@ -410,6 +424,13 @@ export function Canvas({
         nodeId={settingsNodeId}
         onClose={() => setSettingsNodeId(null)}
       />
+      {knowledgeTarget && (
+        <KnowledgePanel
+          nodeTypeId={knowledgeTarget.nodeTypeId}
+          label={knowledgeTarget.label}
+          onClose={() => setKnowledgeTarget(null)}
+        />
+      )}
 
       <ReactFlow
         nodes={renderedNodes}
@@ -430,6 +451,8 @@ export function Canvas({
         minZoom={0.15}
         maxZoom={3}
         connectionRadius={30}
+        deleteKeyCode={['Backspace', 'Delete']}
+        colorMode={resolvedTheme}
         proOptions={{ hideAttribution: true }}
         style={{ background: 'var(--bg)' }}
       >
@@ -444,7 +467,7 @@ export function Canvas({
           zoomable
         />
         {isSimulationRunning && (
-          <PacketOverlay nodes={nodes} edgeStates={edgeStates} />
+          <PacketOverlay edgeStates={edgeStates} />
         )}
         {nodes.length === 0 && <EmptyState />}
       </ReactFlow>
@@ -452,36 +475,59 @@ export function Canvas({
   );
 }
 
+// Reusable detached SVG path element for sampling — avoids DOM allocation per frame
+let _samplerPath: SVGPathElement | null = null;
+function sampleEdgePath(pathData: string, t: number): { x: number; y: number } | null {
+  try {
+    if (!_samplerPath) {
+      _samplerPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    }
+    _samplerPath.setAttribute('d', pathData);
+    const total = _samplerPath.getTotalLength();
+    if (total === 0) return null;
+    const pt = _samplerPath.getPointAtLength(Math.min(Math.max(t, 0), 1) * total);
+    return { x: pt.x, y: pt.y };
+  } catch {
+    return null;
+  }
+}
+
 function PacketOverlay({
-  nodes,
   edgeStates,
 }: {
-  nodes: Node[];
   edgeStates: Map<string, EdgeState>;
 }) {
   const { getViewport } = useReactFlow();
   const viewport = getViewport();
-  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const packets = [...edgeStates.values()].flatMap((edge) => {
-    const source = nodeById.get(edge.source);
-    const target = nodeById.get(edge.target);
-    if (!source || !target || edge.isPartitioned) return [];
 
-    const sourcePoint = nodeCenter(source);
-    const targetPoint = nodeCenter(target);
-    return edge.packets.map((packet) => {
-      const eased = easeInOut(packet.progress);
-      const flowX = sourcePoint.x + (targetPoint.x - sourcePoint.x) * eased;
-      const flowY = sourcePoint.y + (targetPoint.y - sourcePoint.y) * eased;
-      return {
-        id: packet.id,
-        x: flowX * viewport.zoom + viewport.x,
-        y: flowY * viewport.zoom + viewport.y,
-        color: packet.color,
-        radius: packet.type === 'attack' ? 4 : packet.type === 'dropped' ? 2.4 : 3,
-      };
+  const packets = useMemo(() => {
+    const result: { id: string; x: number; y: number; color: string; r: number }[] = [];
+
+    edgeStates.forEach((edgeState, edgeId) => {
+      if (edgeState.isPartitioned || !edgeState.packets.length) return;
+
+      // Get the actual rendered SVG path for this edge (GlowEdge sets id={edgeId} on its main path)
+      const pathEl = document.getElementById(edgeId) as SVGPathElement | null;
+      if (!pathEl) return;
+      const pathData = pathEl.getAttribute('d');
+      if (!pathData) return;
+
+      edgeState.packets.forEach((packet) => {
+        const pt = sampleEdgePath(pathData, packet.progress);
+        if (!pt) return;
+        result.push({
+          id: packet.id,
+          x: pt.x * viewport.zoom + viewport.x,
+          y: pt.y * viewport.zoom + viewport.y,
+          color: packet.color,
+          r: packet.type === 'attack' ? 4 : packet.type === 'dropped' ? 2.4 : 3,
+        });
+      });
     });
-  });
+
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgeStates, viewport.x, viewport.y, viewport.zoom]);
 
   return (
     <svg
@@ -492,37 +538,24 @@ function PacketOverlay({
         width: '100%',
         height: '100%',
         pointerEvents: 'none',
-        zIndex: 4,
+        zIndex: 5,
         overflow: 'visible',
       }}
     >
-      {packets.map((packet) => (
-        <circle
-          key={packet.id}
-          cx={packet.x}
-          cy={packet.y}
-          r={packet.radius}
-          fill={packet.color}
-          opacity={0.9}
-          style={{ filter: `drop-shadow(0 0 4px ${packet.color})` }}
-        />
+      {packets.map((p) => (
+        <g key={p.id}>
+          {/* Glow halo */}
+          <circle cx={p.x} cy={p.y} r={p.r * 2.5} fill={p.color} opacity={0.18} />
+          {/* Solid center */}
+          <circle
+            cx={p.x} cy={p.y} r={p.r}
+            fill={p.color} opacity={0.92}
+            style={{ filter: `drop-shadow(0 0 5px ${p.color})` }}
+          />
+        </g>
       ))}
     </svg>
   );
-}
-
-function nodeCenter(node: Node): { x: number; y: number } {
-  const width = typeof node.style?.width === 'number' ? node.style.width : Number(node.measured?.width) || 210;
-  const height = typeof node.style?.height === 'number' ? node.style.height : Number(node.measured?.height) || 112;
-  return {
-    x: node.position.x + width / 2,
-    y: node.position.y + height / 2,
-  };
-}
-
-function easeInOut(value: number): number {
-  const t = Math.min(Math.max(value, 0), 1);
-  return t * t * (3 - 2 * t);
 }
 
 // ── Edge style default picker overlay ─────────────────────────────────────
@@ -543,18 +576,8 @@ function EdgeStylePicker({
   const current = EDGE_STYLE_OPTIONS.find(o => o.type === value)!;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 10,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 5,
-        pointerEvents: 'auto',
-      }}
-    >
-      <div style={{ position: 'relative' }}>
-        <button
+    <div style={{ position: 'relative' }}>
+      <button
           onClick={() => setOpen(v => !v)}
           style={{
             display: 'flex',
@@ -641,7 +664,6 @@ function EdgeStylePicker({
             </div>
           </>
         )}
-      </div>
     </div>
   );
 }

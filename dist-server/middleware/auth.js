@@ -17,6 +17,7 @@ const authMiddleware = (req, res, next) => {
             throw new Error('JWT_SECRET is not configured on the server');
         }
         const decoded = jsonwebtoken_1.default.verify(token, secret);
+        decoded._id = decoded.userId;
         req.user = decoded;
         next();
     }

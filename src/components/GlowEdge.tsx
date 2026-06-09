@@ -85,6 +85,11 @@ export const GlowEdge = memo(function GlowEdge({
     ));
   };
 
+  const deleteEdge = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEdges(es => es.filter(edge => edge.id !== id));
+  };
+
   const filterId = `glow-${id}`;
   const intensity = selected || hovered ? 3 : invalid ? 2.5 : 1.5;
   const opacity   = selected || hovered ? 0.9 : 0.55;
@@ -143,7 +148,7 @@ export const GlowEdge = memo(function GlowEdge({
         style={{ transition: 'stroke-opacity 0.2s, stroke-width 0.2s', pointerEvents: 'none' }}
       />
 
-      {/* Animated flow particle */}
+      {/* Animated flow particle — increasing dashoffset moves dashes source→target */}
       <path
         d={edgePath}
         fill="none"
@@ -152,18 +157,13 @@ export const GlowEdge = memo(function GlowEdge({
         strokeOpacity={invalid ? 0.9 : 0.75}
         strokeDasharray={invalid ? '4 12' : '5 18'}
         strokeLinecap="round"
-        style={{ pointerEvents: 'none' }}
-      >
-        <animate
-          attributeName="stroke-dashoffset"
-          values={`${invalid ? 48 : 80};0`}
-          dur={meta.dashSpeed}
-          repeatCount="indefinite"
-          calcMode="linear"
-        />
-      </path>
+        style={{
+          pointerEvents: 'none',
+          animation: `${invalid ? 'edge-flow-attack' : 'edge-flow'} ${meta.dashSpeed} linear infinite`,
+        }}
+      />
 
-      {/* Edge routing toolbar — shown when edge is selected */}
+      {/* Edge toolbar — routing switcher + delete button, shown when selected */}
       {selected && (
         <EdgeLabelRenderer>
           <div
@@ -227,6 +227,43 @@ export const GlowEdge = memo(function GlowEdge({
                   </button>
                 );
               })}
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 18, background: 'rgba(124,58,237,0.25)', margin: '0 2px' }} />
+
+              {/* Delete edge button */}
+              <button
+                onClick={deleteEdge}
+                title="Delete edge (Del)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  borderRadius: 5,
+                  border: '1px solid transparent',
+                  background: 'transparent',
+                  color: '#64748B',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  transition: 'all 0.12s',
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
+                  e.currentTarget.style.color = '#EF4444';
+                  e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#64748B';
+                  e.currentTarget.style.borderColor = 'transparent';
+                }}
+              >
+                ×
+              </button>
             </div>
           </div>
         </EdgeLabelRenderer>

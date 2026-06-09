@@ -9,6 +9,7 @@ export interface NodeState {
   currentLoad: number;
   queueDepth: number;
   status: 'healthy' | 'degraded' | 'overloaded' | 'down';
+  statusGlow?: string;
   latency: number;
   errorRate: number;
   cpuUsage: number;
@@ -53,16 +54,14 @@ export interface SimulationSnapshot {
 }
 
 type SimulationListener = (snapshot: SimulationSnapshot) => void;
+type SimulationTheme = 'dark' | 'light';
 
 const BASE_RPS = 1000;
 const METRICS_INTERVAL_MS = 100;
-const MAX_PACKETS_PER_EDGE = 48;
-const PACKET_COLORS: Record<Packet['type'], string> = {
-  normal: '#06B6D4',
-  attack: '#EF4444',
-  error: '#F97316',
-  dropped: '#64748B',
-};
+const BASE_PACKET_SPAWN_FRAMES = 60;
+const BASE_PACKET_SPEED = 0.003;
+const MAX_TRAFFIC_PACKET_CAP = 5;
+const MAX_PACKETS_PER_EDGE = 3;
 
 interface NodeMeta {
   category: Category | null;
@@ -79,7 +78,9 @@ export class SimulationEngine {
   private lastMetricsTime: number;
   private surgeMultiplier: number;
   private speedMultiplier: number;
+  private trafficMultiplier: number;
   private baseRps: number;
+  private packetSpawnAccumulator: Map<string, number>;
   private attackBurstUntil: number;
   private totalPackets: number;
   private droppedPackets: number;
@@ -88,8 +89,9 @@ export class SimulationEngine {
   private partitionTimers: Map<string, number>;
   private subscribers: Set<SimulationListener>;
   private metrics: SimMetrics;
+  private theme: SimulationTheme;
 
-  constructor(nodes: Node[] = [], edges: Edge[] = []) {
+  constructor(nodes: Node[] = [], edges: Edge[] = [], theme: SimulationTheme = 'dark') {
     this.nodes = new Map();
     this.edges = new Map();
     this.nodeMeta = new Map();
@@ -99,7 +101,9 @@ export class SimulationEngine {
     this.lastMetricsTime = 0;
     this.surgeMultiplier = 1;
     this.speedMultiplier = 1;
+    this.trafficMultiplier = 1;
     this.baseRps = BASE_RPS;
+    this.packetSpawnAccumulator = new Map();
     this.attackBurstUntil = 0;
     this.totalPackets = 0;
     this.droppedPackets = 0;
@@ -108,6 +112,7 @@ export class SimulationEngine {
     this.partitionTimers = new Map();
     this.subscribers = new Set();
     this.metrics = emptyMetrics();
+    this.theme = theme;
     this.setTopology(nodes, edges);
   }
 
@@ -140,7 +145,10 @@ export class SimulationEngine {
 
     const nextEdgeIds = new Set(edges.map((edge) => edge.id));
     for (const id of this.edges.keys()) {
-      if (!nextEdgeIds.has(id)) this.edges.delete(id);
+      if (!nextEdgeIds.has(id)) {
+        this.edges.delete(id);
+        this.packetSpawnAccumulator.delete(id);
+      }
     }
 
     for (const edge of edges) {
@@ -191,6 +199,7 @@ export class SimulationEngine {
       edge.bandwidth = 0;
       edge.packets = [];
     }
+    this.packetSpawnAccumulator.clear();
     this.metrics = this.calculateMetrics();
     this.emit();
   }
@@ -293,9 +302,35 @@ export class SimulationEngine {
     this.speedMultiplier = Math.max(0, v);
   }
 
+  setTheme(theme: SimulationTheme): void {
+    if (this.theme === theme) return;
+    this.theme = theme;
+    for (const edge of this.edges.values()) {
+      edge.packets = edge.packets.map((packet) => ({
+        ...packet,
+        color: this.getPacketColor(packet.type),
+      }));
+    }
+    this.emit();
+  }
+
   setBaseRPS(rps: number): void {
     this.baseRps = Math.max(0, rps);
+    this.trafficMultiplier = this.baseRps / BASE_RPS;
     if (this.isRunning) { this.metrics = this.calculateMetrics(); this.emit(); }
+  }
+
+  setTrafficMultiplier(multiplier: number): void {
+    this.trafficMultiplier = Math.max(0, multiplier);
+    this.baseRps = BASE_RPS * this.trafficMultiplier;
+    if (this.trafficMultiplier === 0) {
+      this.packetSpawnAccumulator.clear();
+      for (const edge of this.edges.values()) edge.packets = [];
+    }
+    if (this.isRunning) {
+      this.metrics = this.calculateMetrics();
+      this.emit();
+    }
   }
 
   healEdge(edgeId: string): void {
@@ -322,7 +357,10 @@ export class SimulationEngine {
     this.lastFrameTime = now;
     this.step(dt, now);
 
-    if (now - this.lastMetricsTime >= METRICS_INTERVAL_MS) {
+    const metricsInterval = this.speedMultiplier > 0
+      ? METRICS_INTERVAL_MS / this.speedMultiplier
+      : METRICS_INTERVAL_MS;
+    if (now - this.lastMetricsTime >= metricsInterval) {
       this.lastMetricsTime = now;
       this.metrics = this.calculateMetrics();
       this.emit();
@@ -387,7 +425,7 @@ export class SimulationEngine {
 
     for (const edge of this.edges.values()) {
       if (!edgeLoads.has(edge.id)) edge.bandwidth = smooth(edge.bandwidth, 0, dt, 8);
-      this.advancePackets(edge, dt, now);
+      this.advancePackets(edge, now);
     }
   }
 
@@ -434,45 +472,108 @@ export class SimulationEngine {
     return cacheFastPath / Math.max(edge.latency, 1);
   }
 
-  private advancePackets(edge: EdgeState, dt: number, now: number): void {
+  private advancePackets(edge: EdgeState, now: number): void {
     const target = this.nodes.get(edge.target);
     const source = this.nodes.get(edge.source);
     if (edge.isPartitioned || source?.status === 'down') {
       edge.packets = [];
+      this.packetSpawnAccumulator.set(edge.id, 0);
+      return;
+    }
+
+    const maxPackets = this.maxPacketsForTraffic();
+    if (maxPackets === 0) {
+      edge.packets = [];
+      this.packetSpawnAccumulator.set(edge.id, 0);
       return;
     }
 
     const isAttackBurst = now < this.attackBurstUntil && this.surgeMultiplier > 1.5;
-    const spawnBudget = clamp((edge.bandwidth / 900) * dt * 18, 0, 5);
-    const spawnCount = Math.floor(spawnBudget + Math.random());
-    for (let index = 0; index < spawnCount && edge.packets.length < MAX_PACKETS_PER_EDGE; index += 1) {
+    const spawnCount = this.consumePacketSpawn(edge, maxPackets);
+    for (let index = 0; index < spawnCount && edge.packets.length < maxPackets; index += 1) {
       const errorPacket = (target?.errorRate ?? 0) > Math.random() && Math.random() < 0.35;
       const droppedPacket = target?.status === 'overloaded' && Math.random() < 0.08;
       const type: Packet['type'] = isAttackBurst ? 'attack' : droppedPacket ? 'dropped' : errorPacket ? 'error' : 'normal';
-      const speed = type === 'attack'
-        ? 1.8
-        : clamp(60 / Math.max(edge.latency, 8), 0.08, 1.15);
       this.totalPackets += 1;
       if (type === 'dropped') this.droppedPackets += 1;
       edge.packets.push({
         id: `pkt_${edge.id}_${Math.floor(now)}_${index}_${Math.random().toString(36).slice(2, 7)}`,
         progress: 0,
-        speed,
+        speed: type === 'attack' ? BASE_PACKET_SPEED * 1.8 : BASE_PACKET_SPEED,
         type,
-        color: PACKET_COLORS[type],
+        color: this.getPacketColor(type),
       });
     }
 
     edge.packets = edge.packets
       .map((packet) => ({
         ...packet,
-        progress: packet.progress + packet.speed * dt,
+        progress: packet.progress + packet.speed * this.speedMultiplier,
       }))
       .filter((packet) => {
         if (packet.progress < 1) return true;
         return target?.status === 'down' && packet.progress < 1.08;
       })
-      .slice(-MAX_PACKETS_PER_EDGE);
+      .slice(-maxPackets);
+  }
+
+  private consumePacketSpawn(edge: EdgeState, maxPackets: number): number {
+    if (this.speedMultiplier <= 0 || this.trafficMultiplier <= 0 || edge.bandwidth <= 0 || edge.packets.length >= maxPackets) {
+      return 0;
+    }
+
+    const framesToSpawn = BASE_PACKET_SPAWN_FRAMES / Math.max(this.trafficMultiplier, 1);
+    const nextAccumulator = (this.packetSpawnAccumulator.get(edge.id) ?? 0) + 1;
+    if (nextAccumulator < framesToSpawn) {
+      this.packetSpawnAccumulator.set(edge.id, nextAccumulator);
+      return 0;
+    }
+
+    this.packetSpawnAccumulator.set(edge.id, 0);
+    return 1;
+  }
+
+  private maxPacketsForTraffic(): number {
+    if (this.trafficMultiplier <= 0) return 0;
+    return Math.max(MAX_PACKETS_PER_EDGE, Math.ceil(clamp(this.trafficMultiplier, 1, MAX_TRAFFIC_PACKET_CAP)));
+  }
+
+  private getPacketColor(type: Packet['type']): string {
+    if (this.theme === 'light') {
+      return type === 'normal'
+        ? '#0891B2'
+        : type === 'attack'
+        ? '#DC2626'
+        : type === 'dropped'
+        ? '#475569'
+        : '#D97706';
+    }
+
+    return type === 'normal'
+      ? '#06B6D4'
+      : type === 'attack'
+      ? '#EF4444'
+      : type === 'dropped'
+      ? '#64748B'
+      : '#F97316';
+  }
+
+  private getStatusGlow(status: NodeState['status']): string {
+    if (this.theme === 'light') {
+      return {
+        healthy: 'none',
+        degraded: '0 0 8px rgba(217,119,6,0.4)',
+        overloaded: '0 0 12px rgba(220,38,38,0.5)',
+        down: 'none',
+      }[status] ?? 'none';
+    }
+
+    return {
+      healthy: 'none',
+      degraded: '0 0 12px rgba(234,179,8,0.4)',
+      overloaded: '0 0 20px rgba(239,68,68,0.5)',
+      down: 'none',
+    }[status] ?? 'none';
   }
 
   private calculateMetrics(): SimMetrics {
@@ -559,7 +660,10 @@ export class SimulationEngine {
   private snapshot(): SimulationSnapshot {
     return {
       metrics: this.metrics,
-      nodes: [...this.nodes.values()].map((node) => ({ ...node })),
+      nodes: [...this.nodes.values()].map((node) => ({
+        ...node,
+        statusGlow: this.getStatusGlow(node.status),
+      })),
       edges: [...this.edges.values()].map((edge) => ({
         ...edge,
         packets: edge.packets.map((packet) => ({ ...packet })),

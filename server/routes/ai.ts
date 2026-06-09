@@ -1,70 +1,116 @@
 import { Router, Response, NextFunction } from 'express';
-import Groq from 'groq-sdk';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { callAI } from '../lib/ai';
 
 const router = Router();
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+const SYSTEM_PROMPT = `You are a principal engineer at a top tech company with 15 years of experience designing large-scale distributed systems. When given a system description, generate a DEEP, REALISTIC architecture — not a basic tutorial diagram. Think like an experienced architect who has operated these systems at scale.
 
-const SYSTEM_PROMPT = `You are a system architecture expert for TechSim, an IT learning platform.
-When given a system description, return ONLY valid raw JSON — absolutely no explanation,
-no markdown, no code blocks, no backticks. Just the raw JSON object.
+Think like this:
+- Uber driver tracking: use H3 Geo-Grid indexing, Redis Sorted Sets for spatial queries, Kafka for ingestion, WebSocket proxy for real-time updates, Cassandra for historical trip data
+- Netflix streaming: use multi-CDN strategy, adaptive bitrate, separate recommendation service with ML pipeline, Kafka for play events, Cassandra for viewing history, Elasticsearch for content discovery
+- Twitter feed: use fan-out-on-write for normal users, fan-out-on-read for celebrities (hybrid approach), Redis sorted sets for timeline, Kafka for real-time event processing, separate media service with CDN
+
+Always include:
+1. The RIGHT database for the use case (Cassandra/timeseries-db for time-series, Redis for cache, PostgreSQL/postgres for transactional, Elasticsearch/elastic for search — not just "database")
+2. Message queues (kafka or rabbitmq) where async processing makes sense
+3. Caching strategy — Redis node connected between compute and database layers
+4. CDN for any system serving static assets or media
+5. WAF before any internet-facing entry point
+6. Monitoring node (prometheus or grafana) connected to key services
+7. At least one specialized component that shows deep knowledge (H3 indexing, bloom filters, consistent hashing, write-ahead log, etc.)
+
+Return ONLY valid raw JSON — absolutely no explanation, no markdown, no code blocks, no backticks. Just the raw JSON object.
 
 Return this exact structure:
 {
   "nodes": [
     {
       "id": "node_1",
-      "type": "techsimNode",
+      "type": "techNode",
       "position": { "x": number, "y": number },
+      "style": { "width": 210 },
       "data": {
         "label": string,
+        "icon": string,
         "category": "network"|"compute"|"data"|"messaging"|"infrastructure"|"monitoring",
-        "nodeType": "loadBalancer"|"apiGateway"|"database"|"cache"|"queue"|"microservice"|"cdn"|"waf"|"router"|"firewall"|"dns",
+        "nodeTypeId": "client"|"cdn"|"dns"|"waf"|"load-balancer"|"api-gateway"|"router"|"firewall"|"microservice"|"api-server"|"lambda"|"worker"|"auth-service"|"rate-limiter"|"postgres"|"mysql"|"mongodb"|"redis"|"elastic"|"s3"|"data-warehouse"|"timeseries-db"|"kafka"|"rabbitmq"|"sqs"|"event-bus"|"docker"|"kubernetes"|"prometheus"|"grafana"|"jaeger"|"log-agg",
         "status": "healthy",
         "replicas": number,
         "capacity": number,
-        "latency": number,
-        "region": string
+        "latency": number
       }
     }
   ],
   "edges": [
     {
       "id": "edge_1",
+      "type": "glowEdge",
       "source": "node_1",
       "target": "node_2",
       "data": {
-        "protocol": "HTTP"|"gRPC"|"TCP"|"async",
-        "bandwidth": number
+        "protocol": "http"|"database"|"cache"|"queue",
+        "color": "#06B6D4",
+        "invalid": false,
+        "edgeType": "bezier"
       }
     }
   ]
 }
 
+Icon values to use for each nodeTypeId:
+- client → "monitor", cdn → "cloud", dns → "globe", waf → "shield", load-balancer → "git-branch", api-gateway → "door-open", router → "router", firewall → "flame"
+- microservice → "cpu", api-server → "server", lambda → "zap", worker → "settings", auth-service → "lock", rate-limiter → "gauge"
+- postgres → "database", mysql → "database", mongodb → "layers", redis → "layers", elastic → "search", s3 → "hard-drive", timeseries-db → "activity", data-warehouse → "database"
+- kafka → "send", rabbitmq → "send", sqs → "send", event-bus → "send"
+- docker → "box", kubernetes → "hexagon", prometheus → "bar-chart", grafana → "bar-chart-2", jaeger → "git-branch", log-agg → "file-text"
+
+Capacity values by node type (use realistic numbers):
+- Load Balancer: capacity 100000 (100K RPS)
+- API Gateway: capacity 50000
+- Microservice (single instance): capacity 8000
+- Redis Cache: capacity 500000 (500K ops/sec)
+- Kafka: capacity 1000000 (1M msgs/sec)
+- PostgreSQL: capacity 10000 (10K QPS)
+- MongoDB: capacity 30000
+- Cassandra/timeseries-db: capacity 50000 (50K ops/sec)
+- Elasticsearch: capacity 20000
+- S3: capacity 5000
+- CDN: capacity 500000
+- WAF: capacity 200000
+- API Server: capacity 5000
+- Worker: capacity 2000
+
+Latency values (milliseconds):
+- CDN/Redis: 2-5ms, Load Balancer: 3ms, API Gateway: 8ms, Microservices: 20-40ms, Databases: 10-50ms, Kafka: 10ms, S3: 80ms
+
 Layout positioning rules — follow these x positions exactly:
-- Client browser/mobile: x=80, y=300
-- CDN: x=80, y=150
+- Client browser/mobile: x=60, y=300
+- CDN: x=60, y=120
+- DNS: x=60, y=480
 - WAF: x=280, y=300
-- DNS: x=280, y=150
-- Load Balancer: x=480, y=300
-- API Gateway: x=680, y=300
-- Microservices: x=880, spread y: first=150, second=300, third=450, fourth=550
-- Cache (Redis): x=1080, y=200
-- Database: x=1080, y=350
-- Message Queue: x=1080, y=500
-- Monitoring: x=1280, y=300
+- Load Balancer: x=500, y=300
+- API Gateway: x=720, y=300
+- Microservices: x=940, spread y from 80 to 520 (gap 120 between each)
+- Cache (Redis): x=1160, y=160
+- Primary Database: x=1160, y=320
+- Secondary Database or data warehouse: x=1160, y=480
+- Message Queue (Kafka/RabbitMQ): x=1380, y=300
+- Worker/consumer services: x=1600, y=300
+- Monitoring (Prometheus/Grafana): x=940, y=600
+- CDN/S3 for media: x=1380, y=120
 
 Architecture rules:
 - ALWAYS include a WAF for any internet-facing system
 - ALWAYS include Load Balancer before multiple microservices
-- ALWAYS include Cache before Database for read-heavy systems
+- ALWAYS include Redis Cache before Database for read-heavy systems
 - ALWAYS include API Gateway for microservices architecture
-- Minimum 8 nodes, maximum 16 nodes
-- Every node must have at least one edge connecting it
-- Never leave isolated nodes`;
+- Minimum 10 nodes, maximum 18 nodes
+- Every node must have at least one edge connecting it — never leave isolated nodes
+- Use "database" protocol color for DB edges, "cache" for Redis edges, "queue" for messaging edges, "http" for everything else
+- Monitoring connects TO services (monitoring scrapes them) — use "http" protocol edges
+- Kafka/RabbitMQ consumers connect FROM queue TO worker services`;
+
 
 router.post('/generate', authMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
   const { prompt } = req.body;
@@ -74,17 +120,7 @@ router.post('/generate', authMiddleware, async (req: AuthRequest, res: Response,
   }
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.3,
-      max_tokens: 4096,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user',   content: prompt },
-      ],
-    });
-
-    const raw = completion.choices[0].message.content ?? '';
+    const raw = await callAI(prompt, SYSTEM_PROMPT, 4096);
     // Strip accidental markdown fences
     const cleaned = raw.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
     const diagram = JSON.parse(cleaned);
@@ -100,6 +136,59 @@ router.post('/generate', authMiddleware, async (req: AuthRequest, res: Response,
     } else {
       next(err);
     }
+  }
+});
+
+// POST /api/ai/simulation-report — generate a professional architecture simulation report
+router.post('/simulation-report', authMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const {
+      architectureName, duration, peakRPS, avgP99,
+      totalErrors, bottlenecks, nodeMetrics, chaosEvents
+    } = req.body;
+
+    // Validate inputs
+    if (!architectureName || duration === undefined || peakRPS === undefined || avgP99 === undefined || totalErrors === undefined || !bottlenecks || !nodeMetrics || !chaosEvents) {
+      return res.status(400).json({ error: 'Missing required simulation report fields' });
+    }
+
+    const prompt = `
+    Generate a professional architecture simulation report for a senior engineering audience.
+    
+    Architecture: ${architectureName}
+    Simulation Duration: ${duration} seconds
+    Peak RPS: ${peakRPS}
+    Average P99 Latency: ${avgP99}ms
+    Total Errors: ${totalErrors}
+    Bottlenecks: ${bottlenecks.join(', ')}
+    
+    Component Metrics:
+    ${nodeMetrics.map((n: any) => `- ${n.name}: avg ${n.avgLoad}% load, peak ${n.peakLoad}%, error rate ${(n.errorRate*100).toFixed(2)}%`).join('\n')}
+    
+    Chaos Events:
+    ${chaosEvents.map((e: any) => `- ${e.type} on ${e.targetName} at ${e.timeSeconds}s, recovered in ${e.recoveryTime}s`).join('\n')}
+    
+    Write a report with these sections:
+    ## Executive Summary
+    ## Performance Analysis
+    ## Bottleneck Deep Dive
+    ## Resilience Assessment (based on chaos events)
+    ## Capacity Planning
+    ## Top 5 Recommendations (prioritized by impact)
+    ## Architecture Score (out of 100 with breakdown)
+    
+    Be specific, use real engineering terminology.
+    Reference specific components by name.
+    Include concrete numbers and thresholds.
+    Format as clean markdown.
+  `;
+
+    const systemPrompt = 'You are a principal systems architect with 20 years experience. Write technical reports that are detailed, accurate, and actionable. Use markdown formatting.';
+
+    const reportContent = await callAI(prompt, systemPrompt, 2000);
+    res.json({ report: reportContent });
+  } catch (error) {
+    next(error);
   }
 });
 

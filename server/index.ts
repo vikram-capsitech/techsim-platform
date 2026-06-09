@@ -13,6 +13,7 @@ import diagramRoutes from './routes/diagrams';
 import scenarioRoutes from './routes/scenarios';
 import progressRoutes from './routes/progress';
 import aiRoutes from './routes/ai';
+import feedbackRoutes from './routes/feedback';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +36,7 @@ app.use('/api/diagrams', diagramRoutes);
 app.use('/api/scenarios', scenarioRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

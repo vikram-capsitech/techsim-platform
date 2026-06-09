@@ -2,6 +2,7 @@ import { memo, useState } from 'react';
 import { Handle, Position, type NodeProps, NodeResizer, useReactFlow } from '@xyflow/react';
 import { CATEGORY_META, type Category } from '../data/nodes';
 import { NodeIcon } from './NodeIcon';
+import { SERVICE_ICONS } from '../data/serviceIcons';
 import type { NodeState } from '../simulation/SimulationEngine';
 
 export interface TechNodeData {
@@ -42,6 +43,24 @@ const CATEGORY_COLORS: Record<Category, string> = {
   monitoring:     '#6366F1',
 };
 
+// Shared button style for the floating action bar
+const actionBtnBase: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  borderRadius: 5,
+  background: 'rgba(13,13,16,0.92)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  color: '#64748B',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 11,
+  transition: 'all 0.12s',
+  padding: 0,
+  backdropFilter: 'blur(6px)',
+};
+
 export const TechNode = memo(function TechNode({
   id,
   data,
@@ -55,6 +74,7 @@ export const TechNode = memo(function TechNode({
   const color = CATEGORY_COLORS[category] ?? '#7C3AED';
   const catMeta = CATEGORY_META[category];
   const statusColor = STATUS_COLORS[status] ?? '#22C55E';
+  const serviceIcon = SERVICE_ICONS[td.nodeTypeId] ?? null;
   const isDown = status === 'down';
   const isOverloaded = status === 'overloaded' || status === 'critical';
 
@@ -62,11 +82,11 @@ export const TechNode = memo(function TechNode({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
 
-  // Simulation metrics
   const simState = td.simState;
   const cpuPct = simState ? Math.min(simState.cpuUsage * 100, 100) : 0;
   const latency = simState ? Math.round(simState.latency) : 0;
   const showSimBar = isRunning && simState;
+  const statusGlow = simState?.statusGlow && simState.statusGlow !== 'none' ? simState.statusGlow : null;
 
   const deleteNode = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -75,9 +95,14 @@ export const TechNode = memo(function TechNode({
 
   const openSettings = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Trigger settings panel by selecting + dispatching custom event
-    const event = new CustomEvent('node-settings-open', { detail: { nodeId: id } });
-    window.dispatchEvent(event);
+    window.dispatchEvent(new CustomEvent('node-settings-open', { detail: { nodeId: id } }));
+  };
+
+  const openKnowledge = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent('node-knowledge-open', {
+      detail: { nodeTypeId: td.nodeTypeId, label: label as string },
+    }));
   };
 
   const startEdit = (e: React.MouseEvent) => {
@@ -100,39 +125,20 @@ export const TechNode = memo(function TechNode({
 
   const cpuColor = cpuPct > 85 ? '#EF4444' : cpuPct > 60 ? '#EAB308' : '#22C55E';
 
+  // Shared handle style — CSS controls visibility (opacity: 0 → 1 on hover)
+  const handleStyle: React.CSSProperties = {
+    width: 10,
+    height: 10,
+    background: color,
+    border: '2px solid var(--bg)',
+    borderRadius: '50%',
+  };
+
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        minWidth: 160,
-        minHeight: 70,
-        background: isDown
-          ? 'rgba(13,13,16,0.6)'
-          : selected
-          ? '#1A1A2E'
-          : '#12121C',
-        borderRadius: 8,
-        border: `1px solid ${selected ? color + '80' : isOverloaded ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}`,
-        borderTop: `2px solid ${isDown ? '#64748B' : color}`,
-        boxShadow: selected
-          ? `0 0 0 1px ${color}30, 0 4px 20px rgba(0,0,0,0.6)`
-          : isOverloaded
-          ? '0 0 14px rgba(239,68,68,0.35)'
-          : '0 2px 8px rgba(0,0,0,0.4)',
-        transition: 'all 0.15s ease',
-        cursor: 'default',
-        overflow: 'hidden',
-        boxSizing: 'border-box',
-        opacity: isDown ? 0.5 : 1,
-        animation: isOverloaded
-          ? 'node-breathe 1.2s ease-in-out infinite'
-          : isRunning
-          ? 'node-breathe 3s ease-in-out infinite'
-          : undefined,
-      }}
-    >
+    // Root: position:relative so action bar can float above; NO overflow:hidden
+    // minWidth/minHeight give React Flow something to measure (no height:100% here)
+    <div style={{ position: 'relative', minWidth: 160, minHeight: 70 }}>
+
       <NodeResizer
         minWidth={160}
         minHeight={70}
@@ -141,171 +147,234 @@ export const TechNode = memo(function TechNode({
         handleStyle={{
           width: '7px', height: '7px',
           background: color,
-          border: '2px solid #0A0A0F',
+          border: '2px solid var(--bg)',
           borderRadius: '2px',
         }}
       />
 
-      {/* Handles */}
-      <Handle type="target" position={Position.Top}
-        style={{ top: 2, width: 6, height: 6, background: '#0A0A0F', border: `1.5px solid ${color}60` }} />
-      <Handle type="source" position={Position.Bottom}
-        style={{ bottom: 2, width: 6, height: 6, background: '#0A0A0F', border: `1.5px solid ${color}60` }} />
-      <Handle type="source" position={Position.Right}
-        style={{ right: 2, width: 6, height: 6, background: '#0A0A0F', border: `1.5px solid ${color}60` }} />
-      <Handle type="target" position={Position.Left}
-        style={{ left: 2, width: 6, height: 6, background: '#0A0A0F', border: `1.5px solid ${color}60` }} />
+      {/* Handles — all 4 sides; CSS makes them opacity:0 by default, 1 on hover */}
+      <Handle id="top"    type="target" position={Position.Top}    style={handleStyle} />
+      <Handle id="bottom" type="source" position={Position.Bottom} style={handleStyle} />
+      <Handle id="left"   type="target" position={Position.Left}   style={handleStyle} />
+      <Handle id="right"  type="source" position={Position.Right}  style={handleStyle} />
 
-      {/* Main content */}
-      <div style={{ padding: '7px 8px 6px', display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box' }}>
+      {/* ── Floating action bar — appears ABOVE the node card on hover ── */}
+      <div
+        className="node-actions nodrag nopan"
+        style={{
+          position: 'absolute',
+          top: -32,
+          right: 0,
+          display: 'flex',
+          gap: 3,
+          zIndex: 10,
+          // opacity & pointer-events controlled by CSS (.react-flow__node:hover .node-actions)
+        }}
+      >
+        <button
+          onClick={openKnowledge}
+          title="Learn about this component"
+          style={actionBtnBase}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(6,182,212,0.18)';
+            e.currentTarget.style.borderColor = 'rgba(6,182,212,0.4)';
+            e.currentTarget.style.color = '#06B6D4';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'rgba(13,13,16,0.92)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+            e.currentTarget.style.color = '#64748B';
+          }}
+        >
+          📚
+        </button>
+        <button
+          onClick={openSettings}
+          title="Configure"
+          style={actionBtnBase}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(99,102,241,0.18)';
+            e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)';
+            e.currentTarget.style.color = '#818CF8';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'rgba(13,13,16,0.92)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+            e.currentTarget.style.color = '#64748B';
+          }}
+        >
+          ⚙
+        </button>
+        <button
+          onClick={deleteNode}
+          title="Delete node (Del)"
+          style={actionBtnBase}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
+            e.currentTarget.style.borderColor = 'rgba(239,68,68,0.35)';
+            e.currentTarget.style.color = '#EF4444';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'rgba(13,13,16,0.92)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+            e.currentTarget.style.color = '#64748B';
+          }}
+        >
+          🗑
+        </button>
+      </div>
 
-        {/* Row 1: category badge + action icons */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-          {/* Category badge */}
-          <span
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: `${color}18`,
-              border: `1px solid ${color}30`,
-              borderRadius: 4,
-              padding: '1px 6px 1px 4px',
-              fontSize: 9,
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color,
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', color }}>
-              <NodeIcon icon={icon as string} size={9} strokeWidth={2} />
-            </span>
-            {catMeta?.label ?? category}
-          </span>
+      {/* ── Visual card — normal flow layout so React Flow can measure height ── */}
+      <div
+        style={{
+          minWidth: 160,
+          minHeight: 70,
+          background: isDown
+            ? 'rgba(13,13,16,0.6)'
+            : selected
+            ? 'var(--card-hover)'
+            : 'var(--card-bg)',
+          borderRadius: 8,
+          border: `1px solid ${selected ? color + '80' : isOverloaded ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
+          borderTop: `2px solid ${isDown ? '#64748B' : color}`,
+          boxShadow: selected
+            ? `0 0 0 1px ${color}30, 0 4px 20px rgba(0,0,0,0.6)`
+            : statusGlow
+            ? statusGlow
+            : isOverloaded
+            ? '0 0 14px rgba(239,68,68,0.35)'
+            : '0 2px 8px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
+          transition: 'all 0.15s ease',
+          opacity: isDown ? 0.5 : 1,
+          animation: isOverloaded
+            ? 'node-breathe 1.2s ease-in-out infinite'
+            : isRunning
+            ? 'node-breathe 3s ease-in-out infinite'
+            : undefined,
+        }}
+      >
+        <div style={{ padding: '7px 8px 6px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
 
-          {/* Action icons — only visible on hover or selected */}
-          <div
-            className="node-actions"
-            style={{ display: 'flex', alignItems: 'center', gap: 3 }}
-          >
-            <button
-              onClick={openSettings}
-              title="Settings"
+          {/* Row 1: category badge + status dot */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+            <span
               style={{
-                width: 18, height: 18, borderRadius: 4,
-                background: 'transparent', border: '1px solid transparent',
-                color: '#64748B', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, transition: 'all 0.1s',
-                padding: 0,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.15)'; e.currentTarget.style.color = '#818CF8'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748B'; e.currentTarget.style.borderColor = 'transparent'; }}
-            >
-              ⚙
-            </button>
-            <button
-              onClick={deleteNode}
-              title="Delete node"
-              style={{
-                width: 18, height: 18, borderRadius: 4,
-                background: 'transparent', border: '1px solid transparent',
-                color: '#64748B', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, transition: 'all 0.1s',
-                padding: 0,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#EF4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748B'; e.currentTarget.style.borderColor = 'transparent'; }}
-            >
-              🗑
-            </button>
-          </div>
-        </div>
-
-        {/* Row 2: node name + status dot */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {isEditing ? (
-            <input
-              autoFocus
-              value={editValue as string}
-              onChange={e => setEditValue(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={handleKeyDown}
-              onClick={e => e.stopPropagation()}
-              className="nodrag"
-              style={{
-                flex: 1,
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--text)',
-                fontFamily: "'DM Sans', sans-serif",
-                background: 'rgba(124,58,237,0.1)',
-                border: '1px solid rgba(124,58,237,0.4)',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: `${color}18`,
+                border: `1px solid ${color}30`,
                 borderRadius: 4,
-                padding: '1px 5px',
-                outline: 'none',
-                boxSizing: 'border-box',
+                padding: '1px 6px 1px 4px',
+                fontSize: 9,
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color,
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center' }}>
+                {serviceIcon ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    width={11}
+                    height={11}
+                    fill={`#${serviceIcon.hex}`}
+                    style={{ display: 'block', flexShrink: 0 }}
+                    aria-label={serviceIcon.title}
+                  >
+                    <path d={serviceIcon.path} />
+                  </svg>
+                ) : (
+                  <NodeIcon icon={icon as string} size={9} strokeWidth={2} color={color} />
+                )}
+              </span>
+              {catMeta?.label ?? category}
+            </span>
+
+            {/* Status dot */}
+            <span
+              style={{
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: statusColor,
+                boxShadow: `0 0 5px ${statusColor}80`,
+                animation: isOverloaded ? 'pulse-glow 0.7s ease-in-out infinite' : 'pulse-glow 2.5s ease-in-out infinite',
               }}
             />
-          ) : (
-            <div
-              onDoubleClick={startEdit}
-              title={`${label as string} · double-click to rename`}
-              style={{
-                flex: 1,
-                fontSize: 13,
-                fontWeight: 600,
-                color: isDown ? '#64748B' : 'var(--text)',
-                fontFamily: "'DM Sans', sans-serif",
-                letterSpacing: '-0.01em',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                cursor: 'text',
-              }}
-            >
-              {label as string}
-            </div>
-          )}
+          </div>
 
-          {/* Status dot */}
-          <span
-            style={{
-              width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-              background: statusColor,
-              boxShadow: `0 0 5px ${statusColor}80`,
-              animation: isOverloaded ? 'pulse-glow 0.7s ease-in-out infinite' : 'pulse-glow 2.5s ease-in-out infinite',
-            }}
-          />
-        </div>
-
-        {/* Row 3: simulation metrics (only shown during simulation) */}
-        {showSimBar && (
-          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* CPU bar */}
-            <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-              <div
+          {/* Row 2: node name */}
+          <div style={{ minHeight: 28, display: 'flex', alignItems: 'center' }}>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editValue as string}
+                onChange={e => setEditValue(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={handleKeyDown}
+                onClick={e => e.stopPropagation()}
+                className="nodrag"
                 style={{
-                  height: '100%',
-                  width: `${cpuPct}%`,
-                  background: cpuColor,
-                  borderRadius: 2,
-                  transition: 'width 0.3s ease, background 0.3s',
-                  boxShadow: `0 0 4px ${cpuColor}80`,
+                  flex: 1,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  fontFamily: "'DM Sans', sans-serif",
+                  background: 'rgba(124,58,237,0.1)',
+                  border: '1px solid rgba(124,58,237,0.4)',
+                  borderRadius: 4,
+                  padding: '1px 5px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
                 }}
               />
-            </div>
-            {/* Latency */}
-            <span style={{
-              fontSize: 8.5, fontFamily: "'IBM Plex Mono', monospace",
-              color: latency > 500 ? '#EF4444' : latency > 200 ? '#EAB308' : '#64748B',
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}>
-              {latency}ms
-            </span>
+            ) : (
+              <div
+                onDoubleClick={startEdit}
+                title={`${label as string} · double-click to rename`}
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: isDown ? '#64748B' : 'var(--text)',
+                  fontFamily: "'DM Sans', sans-serif",
+                  letterSpacing: '-0.01em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  cursor: 'text',
+                }}
+              >
+                {label as string}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Row 3: simulation metrics */}
+          {showSimBar && (
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${cpuPct}%`,
+                    background: cpuColor,
+                    borderRadius: 2,
+                    transition: 'width 0.3s ease, background 0.3s',
+                    boxShadow: `0 0 4px ${cpuColor}80`,
+                  }}
+                />
+              </div>
+              <span style={{
+                fontSize: 8.5, fontFamily: "'IBM Plex Mono', monospace",
+                color: latency > 500 ? '#EF4444' : latency > 200 ? '#EAB308' : '#64748B',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>
+                {latency}ms
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Bell, Settings, Save, LogOut, Loader2, CheckCircle, Play, Square } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 const TABS = [
   { path: '/canvas',    label: 'System Design' },
@@ -86,6 +87,7 @@ export function Navbar({ onSave, onSimulationStart, simulationRunning = false }:
       <div style={styles.actions}>
         <IconBtn><Bell size={15} /></IconBtn>
         <IconBtn><Settings size={15} /></IconBtn>
+        <ThemeSwitcher />
         <div style={styles.divider} />
 
         {onSimulationStart && (
