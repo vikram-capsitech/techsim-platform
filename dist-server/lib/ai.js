@@ -6,29 +6,35 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.callAI = callAI;
 const groq_sdk_1 = __importDefault(require("groq-sdk"));
 const generative_ai_1 = require("@google/generative-ai");
-const groq = new groq_sdk_1.default({ apiKey: process.env.GROQ_API_KEY });
-async function callAI(userPrompt, systemPrompt, maxTokens = 1000) {
-    // Try Groq first
-    try {
-        const completion = await groq.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
-            max_tokens: maxTokens,
-            temperature: 0.3,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ]
-        });
-        return completion.choices[0].message.content || '';
+async function callAI(userPrompt, systemPrompt, maxTokens = 1000, customGroqKey, customGeminiKey) {
+    const groqKey = customGroqKey || process.env.GROQ_API_KEY;
+    const geminiKey = customGeminiKey || process.env.GEMINI_API_KEY;
+    if (!groqKey && !geminiKey) {
+        throw new Error('No Groq or Gemini API key configured on server or client');
     }
-    catch (groqError) {
-        console.warn('Groq failed, trying Gemini fallback:', groqError);
-        // Gemini fallback
-        if (!process.env.GEMINI_API_KEY) {
-            throw new Error('Groq failed and no Gemini API key configured');
-        }
+    // Try Groq first if key is available
+    if (groqKey) {
         try {
-            const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            const groqClient = new groq_sdk_1.default({ apiKey: groqKey });
+            const completion = await groqClient.chat.completions.create({
+                model: 'llama-3.3-70b-versatile',
+                max_tokens: maxTokens,
+                temperature: 0.3,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ]
+            });
+            return completion.choices[0].message.content || '';
+        }
+        catch (groqError) {
+            console.warn('Groq failed, trying Gemini fallback:', groqError);
+        }
+    }
+    // Gemini fallback
+    if (geminiKey) {
+        try {
+            const genAI = new generative_ai_1.GoogleGenerativeAI(geminiKey);
             const model = genAI.getGenerativeModel({
                 model: 'gemini-1.5-flash',
                 systemInstruction: systemPrompt
@@ -41,4 +47,5 @@ async function callAI(userPrompt, systemPrompt, maxTokens = 1000) {
             throw new Error('All AI providers failed');
         }
     }
+    throw new Error('No Groq or Gemini API key configured on server or client');
 }

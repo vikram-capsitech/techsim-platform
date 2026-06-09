@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
-export type Theme = 'dark' | 'light' | 'system';
+export type Theme = 'dark' | 'darker' | 'light' | 'system';
 export type ResolvedTheme = 'dark' | 'light';
 
 interface ThemeContextType {
@@ -19,6 +19,9 @@ function resolveTheme(theme: Theme): ResolvedTheme {
   if (theme === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  if (theme === 'darker') {
+    return 'dark';
+  }
   return theme;
 }
 
@@ -34,7 +37,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const resolved = resolveTheme(theme);
     setResolvedTheme(resolved);
-    document.documentElement.setAttribute('data-theme', resolved);
+    document.documentElement.setAttribute('data-theme', theme === 'system' ? resolved : theme);
     localStorage.setItem('techsim_theme', theme);
   }, [theme]);
 

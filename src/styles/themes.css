@@ -20,6 +20,28 @@
   --accent-glow:    rgba(124,58,237,0.35);
 }
 
+/* ── Darker theme ───────────────────────────────────────────────────────────── */
+[data-theme='darker'] {
+  --bg:             #050508;
+  --sidebar-bg:     #08080C;
+  --panel-bg:       #0A0A0F;
+  --card-bg:        #0E0E16;
+  --card-hover:     #141420;
+  --input-bg:       #05050A;
+
+  --border:         #181826;
+  --border-dim:     #10101A;
+  --border-bright:  #25253A;
+
+  --text:           #E2E8F0;
+  --text-dim:       #64748B;
+  --text-muted:     #3A3A52;
+
+  --accent:         #7C3AED;
+  --accent-bright:  #8B5CF6;
+  --accent-glow:    rgba(124,58,237,0.35);
+}
+
 /* ── Light theme ────────────────────────────────────────────────────────────── */
 [data-theme='light'] {
   --bg:             #F8FAFC;

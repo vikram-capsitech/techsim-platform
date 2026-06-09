@@ -54,11 +54,15 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
   const generateReport = async () => {
     try {
       const token = localStorage.getItem('techsim_token');
+      const groqKey = localStorage.getItem('groq_api_key') ?? '';
+      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
       const res = await fetch('http://localhost:5000/api/ai/simulation-report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
+          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
+          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
         },
         body: JSON.stringify(data),
       });

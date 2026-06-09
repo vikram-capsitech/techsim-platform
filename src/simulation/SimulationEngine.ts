@@ -46,6 +46,18 @@ export interface SimMetrics {
   bottleneck: string | null;
 }
 
+export interface ChaosEvent {
+  id: string;
+  type: string;
+  targetId: string;
+  targetName: string;
+  timeSeconds: number;
+  impactDescription: string;
+  recoveryTime: number;
+  recovered: boolean;
+  timestamp: number;
+}
+
 export interface SimulationSnapshot {
   metrics: SimMetrics;
   nodes: NodeState[];
@@ -57,15 +69,15 @@ type SimulationListener = (snapshot: SimulationSnapshot) => void;
 type SimulationTheme = 'dark' | 'light';
 
 const BASE_RPS = 1000;
-const METRICS_INTERVAL_MS = 100;
-const BASE_PACKET_SPAWN_FRAMES = 60;
-const BASE_PACKET_SPEED = 0.003;
-const MAX_TRAFFIC_PACKET_CAP = 5;
-const MAX_PACKETS_PER_EDGE = 3;
+const METRICS_UPDATE_TICKS = 6;
+const PACKET_SPAWN_TICKS = 90;
+const BASE_PACKET_SPEED = 0.004;
+const MAX_PACKETS_PER_EDGE = 2;
 
 interface NodeMeta {
   category: Category | null;
   icon: string;
+  label: string;
 }
 
 export class SimulationEngine {
@@ -75,13 +87,11 @@ export class SimulationEngine {
   private animationFrameId: number;
   private isRunning: boolean;
   private lastFrameTime: number;
-  private lastMetricsTime: number;
+  private tickCount: number;
   private surgeMultiplier: number;
   private speedMultiplier: number;
   private trafficMultiplier: number;
   private baseRps: number;
-  private packetSpawnAccumulator: Map<string, number>;
-  private attackBurstUntil: number;
   private totalPackets: number;
   private droppedPackets: number;
   private surgeTimer: number;
@@ -90,6 +100,7 @@ export class SimulationEngine {
   private subscribers: Set<SimulationListener>;
   private metrics: SimMetrics;
   private theme: SimulationTheme;
+  private chaosLog: ChaosEvent[];
 
   constructor(nodes: Node[] = [], edges: Edge[] = [], theme: SimulationTheme = 'dark') {
     this.nodes = new Map();
@@ -98,13 +109,11 @@ export class SimulationEngine {
     this.animationFrameId = 0;
     this.isRunning = false;
     this.lastFrameTime = 0;
-    this.lastMetricsTime = 0;
+    this.tickCount = 0;
     this.surgeMultiplier = 1;
     this.speedMultiplier = 1;
     this.trafficMultiplier = 1;
     this.baseRps = BASE_RPS;
-    this.packetSpawnAccumulator = new Map();
-    this.attackBurstUntil = 0;
     this.totalPackets = 0;
     this.droppedPackets = 0;
     this.surgeTimer = 0;
@@ -113,6 +122,7 @@ export class SimulationEngine {
     this.subscribers = new Set();
     this.metrics = emptyMetrics();
     this.theme = theme;
+    this.chaosLog = [];
     this.setTopology(nodes, edges);
   }
 
@@ -140,6 +150,7 @@ export class SimulationEngine {
       this.nodeMeta.set(node.id, {
         category: data.category ?? null,
         icon: data.icon ?? '',
+        label: String(data.label ?? node.id),
       });
     }
 
@@ -147,7 +158,6 @@ export class SimulationEngine {
     for (const id of this.edges.keys()) {
       if (!nextEdgeIds.has(id)) {
         this.edges.delete(id);
-        this.packetSpawnAccumulator.delete(id);
       }
     }
 
@@ -172,8 +182,8 @@ export class SimulationEngine {
   start(): void {
     if (this.isRunning) return;
     this.isRunning = true;
+    this.tickCount = 0;
     this.lastFrameTime = performance.now();
-    this.lastMetricsTime = this.lastFrameTime;
     this.animationFrameId = requestAnimationFrame(this.loop);
     this.emit();
   }
@@ -183,7 +193,6 @@ export class SimulationEngine {
     this.animationFrameId = 0;
     this.isRunning = false;
     this.surgeMultiplier = 1;
-    this.attackBurstUntil = 0;
     this.totalPackets = 0;
     this.droppedPackets = 0;
     this.clearChaosTimers();
@@ -199,7 +208,6 @@ export class SimulationEngine {
       edge.bandwidth = 0;
       edge.packets = [];
     }
-    this.packetSpawnAccumulator.clear();
     this.metrics = this.calculateMetrics();
     this.emit();
   }
@@ -214,6 +222,11 @@ export class SimulationEngine {
   crashNode(nodeId: string): void {
     const node = this.nodes.get(nodeId);
     if (!node) return;
+    this.logChaosEvent({
+      type: 'Node Crash',
+      targetId: nodeId,
+      impactDescription: 'Node went offline, traffic redistributed to healthy nodes',
+    });
     node.status = 'down';
     node.currentLoad = 0;
     node.queueDepth = 0;
@@ -233,6 +246,11 @@ export class SimulationEngine {
   spikeLatency(edgeId: string, ms: number): void {
     const edge = this.edges.get(edgeId);
     if (!edge) return;
+    const event = this.logChaosEvent({
+      type: 'Latency Spike',
+      targetId: edgeId,
+      impactDescription: 'Edge latency increased, queues and tail latency rose',
+    });
     if (this.latencyTimers.has(edgeId)) {
       window.clearTimeout(this.latencyTimers.get(edgeId));
     }
@@ -241,6 +259,7 @@ export class SimulationEngine {
       const activeEdge = this.edges.get(edgeId);
       if (activeEdge) {
         activeEdge.latency = Math.max(0, activeEdge.latency - ms);
+        this.markChaosRecovered(event.id);
         this.metrics = this.calculateMetrics();
         this.emit();
       }
@@ -252,12 +271,16 @@ export class SimulationEngine {
   }
 
   trafficSurge(multiplier: number): void {
+    const event = this.logChaosEvent({
+      type: 'Traffic Surge',
+      targetId: 'global',
+      impactDescription: 'Traffic increased across ingress paths',
+    });
     this.surgeMultiplier = Math.max(0, multiplier);
-    this.attackBurstUntil = performance.now() + 2500;
     if (this.surgeTimer) window.clearTimeout(this.surgeTimer);
     this.surgeTimer = window.setTimeout(() => {
       this.surgeMultiplier = 1;
-      this.attackBurstUntil = 0;
+      this.markChaosRecovered(event.id);
       this.metrics = this.calculateMetrics();
       this.emit();
     }, 10000);
@@ -266,6 +289,11 @@ export class SimulationEngine {
   networkPartition(edgeId: string): void {
     const edge = this.edges.get(edgeId);
     if (!edge) return;
+    const event = this.logChaosEvent({
+      type: 'Network Partition',
+      targetId: edgeId,
+      impactDescription: 'Edge was partitioned, traffic on that path stopped',
+    });
     edge.isPartitioned = true;
     edge.bandwidth = 0;
     edge.packets = [];
@@ -276,6 +304,7 @@ export class SimulationEngine {
       const activeEdge = this.edges.get(edgeId);
       if (activeEdge) {
         activeEdge.isPartitioned = false;
+        this.markChaosRecovered(event.id);
         this.metrics = this.calculateMetrics();
         this.emit();
       }
@@ -289,6 +318,11 @@ export class SimulationEngine {
   healNode(nodeId: string): void {
     const node = this.nodes.get(nodeId);
     if (!node) return;
+    const crashEvent = [...this.chaosLog].reverse().find((event) => event.targetId === nodeId && !event.recovered);
+    if (crashEvent) {
+      crashEvent.recovered = true;
+      crashEvent.recoveryTime = this.elapsedSeconds() - crashEvent.timeSeconds;
+    }
     node.status = 'healthy';
     node.errorRate = 0;
     node.queueDepth = 0;
@@ -324,7 +358,6 @@ export class SimulationEngine {
     this.trafficMultiplier = Math.max(0, multiplier);
     this.baseRps = BASE_RPS * this.trafficMultiplier;
     if (this.trafficMultiplier === 0) {
-      this.packetSpawnAccumulator.clear();
       for (const edge of this.edges.values()) edge.packets = [];
     }
     if (this.isRunning) {
@@ -351,17 +384,22 @@ export class SimulationEngine {
     return this.snapshot();
   }
 
+  getChaosLog(): ChaosEvent[] {
+    return this.chaosLog.map((event) => ({ ...event }));
+  }
+
+  resetChaosLog(): void {
+    this.chaosLog = [];
+  }
+
   private loop = (now: number): void => {
     if (!this.isRunning) return;
+    this.tickCount += 1;
     const dt = Math.min((now - this.lastFrameTime) / 1000, 0.1) * this.speedMultiplier;
     this.lastFrameTime = now;
-    this.step(dt, now);
+    this.step(dt);
 
-    const metricsInterval = this.speedMultiplier > 0
-      ? METRICS_INTERVAL_MS / this.speedMultiplier
-      : METRICS_INTERVAL_MS;
-    if (now - this.lastMetricsTime >= metricsInterval) {
-      this.lastMetricsTime = now;
+    if (this.tickCount % METRICS_UPDATE_TICKS === 0) {
       this.metrics = this.calculateMetrics();
       this.emit();
     }
@@ -369,7 +407,7 @@ export class SimulationEngine {
     this.animationFrameId = requestAnimationFrame(this.loop);
   };
 
-  private step(dt: number, now: number): void {
+  private step(dt: number): void {
     const incoming = new Map<string, number>();
     const edgeLoads = new Map<string, number>();
     const sources = this.sourceNodeIds();
@@ -425,7 +463,7 @@ export class SimulationEngine {
 
     for (const edge of this.edges.values()) {
       if (!edgeLoads.has(edge.id)) edge.bandwidth = smooth(edge.bandwidth, 0, dt, 8);
-      this.advancePackets(edge, now);
+      this.advancePackets(edge);
     }
   }
 
@@ -472,34 +510,33 @@ export class SimulationEngine {
     return cacheFastPath / Math.max(edge.latency, 1);
   }
 
-  private advancePackets(edge: EdgeState, now: number): void {
+  private advancePackets(edge: EdgeState): void {
     const target = this.nodes.get(edge.target);
     const source = this.nodes.get(edge.source);
-    if (edge.isPartitioned || source?.status === 'down') {
+    if (edge.isPartitioned) {
       edge.packets = [];
-      this.packetSpawnAccumulator.set(edge.id, 0);
       return;
     }
 
     const maxPackets = this.maxPacketsForTraffic();
     if (maxPackets === 0) {
       edge.packets = [];
-      this.packetSpawnAccumulator.set(edge.id, 0);
       return;
     }
 
-    const isAttackBurst = now < this.attackBurstUntil && this.surgeMultiplier > 1.5;
     const spawnCount = this.consumePacketSpawn(edge, maxPackets);
     for (let index = 0; index < spawnCount && edge.packets.length < maxPackets; index += 1) {
-      const errorPacket = (target?.errorRate ?? 0) > Math.random() && Math.random() < 0.35;
-      const droppedPacket = target?.status === 'overloaded' && Math.random() < 0.08;
-      const type: Packet['type'] = isAttackBurst ? 'attack' : droppedPacket ? 'dropped' : errorPacket ? 'error' : 'normal';
+      const type: Packet['type'] = source?.status === 'overloaded'
+        ? 'error'
+        : source?.status === 'down'
+        ? 'dropped'
+        : 'normal';
       this.totalPackets += 1;
       if (type === 'dropped') this.droppedPackets += 1;
       edge.packets.push({
-        id: `pkt_${edge.id}_${Math.floor(now)}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+        id: `pkt_${this.tickCount}_${edge.id}_${index}`,
         progress: 0,
-        speed: type === 'attack' ? BASE_PACKET_SPEED * 1.8 : BASE_PACKET_SPEED,
+        speed: BASE_PACKET_SPEED,
         type,
         color: this.getPacketColor(type),
       });
@@ -518,24 +555,17 @@ export class SimulationEngine {
   }
 
   private consumePacketSpawn(edge: EdgeState, maxPackets: number): number {
-    if (this.speedMultiplier <= 0 || this.trafficMultiplier <= 0 || edge.bandwidth <= 0 || edge.packets.length >= maxPackets) {
+    if (this.speedMultiplier <= 0 || this.trafficMultiplier <= 0 || edge.packets.length >= maxPackets) {
       return 0;
     }
 
-    const framesToSpawn = BASE_PACKET_SPAWN_FRAMES / Math.max(this.trafficMultiplier, 1);
-    const nextAccumulator = (this.packetSpawnAccumulator.get(edge.id) ?? 0) + 1;
-    if (nextAccumulator < framesToSpawn) {
-      this.packetSpawnAccumulator.set(edge.id, nextAccumulator);
-      return 0;
-    }
-
-    this.packetSpawnAccumulator.set(edge.id, 0);
-    return 1;
+    const spawnEveryTicks = Math.max(1, Math.round(PACKET_SPAWN_TICKS / this.speedMultiplier));
+    return this.tickCount % spawnEveryTicks === 0 ? 1 : 0;
   }
 
   private maxPacketsForTraffic(): number {
     if (this.trafficMultiplier <= 0) return 0;
-    return Math.max(MAX_PACKETS_PER_EDGE, Math.ceil(clamp(this.trafficMultiplier, 1, MAX_TRAFFIC_PACKET_CAP)));
+    return MAX_PACKETS_PER_EDGE;
   }
 
   private getPacketColor(type: Packet['type']): string {
@@ -574,6 +604,53 @@ export class SimulationEngine {
       overloaded: '0 0 20px rgba(239,68,68,0.5)',
       down: 'none',
     }[status] ?? 'none';
+  }
+
+  private logChaosEvent({
+    type,
+    targetId,
+    impactDescription,
+  }: {
+    type: string;
+    targetId: string;
+    impactDescription: string;
+  }): ChaosEvent {
+    const event: ChaosEvent = {
+      id: `chaos_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      type,
+      targetId,
+      targetName: this.getTargetName(targetId),
+      timeSeconds: this.elapsedSeconds(),
+      impactDescription,
+      recoveryTime: 0,
+      recovered: false,
+      timestamp: Date.now(),
+    };
+    this.chaosLog.push(event);
+    return event;
+  }
+
+  private markChaosRecovered(eventId: string): void {
+    const event = this.chaosLog.find((entry) => entry.id === eventId);
+    if (!event || event.recovered) return;
+    event.recovered = true;
+    event.recoveryTime = Math.max(0, this.elapsedSeconds() - event.timeSeconds);
+  }
+
+  private elapsedSeconds(): number {
+    return Math.round(this.tickCount / 60);
+  }
+
+  private getTargetName(targetId: string): string {
+    const nodeName = this.nodeMeta.get(targetId)?.label;
+    if (nodeName) return nodeName;
+
+    const edge = this.edges.get(targetId);
+    if (!edge) return targetId;
+
+    const sourceName = this.nodeMeta.get(edge.source)?.label ?? edge.source;
+    const targetName = this.nodeMeta.get(edge.target)?.label ?? edge.target;
+    return `${sourceName} -> ${targetName}`;
   }
 
   private calculateMetrics(): SimMetrics {

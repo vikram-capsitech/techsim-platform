@@ -350,3 +350,209 @@ function FormView({
     </>
   );
 }
+
+export function FeedbackSection() {
+  const [type,        setType]        = useState<FeedbackType>('feature');
+  const [title,       setTitle]       = useState('');
+  const [description, setDescription] = useState('');
+  const [email,       setEmail]       = useState('');
+  const [priority,    setPriority]    = useState<Priority>('medium');
+  const [submitted,   setSubmitted]   = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [error,       setError]       = useState('');
+
+  const submit = async () => {
+    if (!title.trim() || !description.trim()) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch('http://localhost:5000/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type, title: title.trim(), description: description.trim(),
+          email: email.trim() || undefined,
+          priority,
+          page: window.location.pathname,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      setSubmitted(true);
+      setTitle('');
+      setDescription('');
+      setEmail('');
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch {
+      setError('Could not submit feedback. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    padding: '9px 12px',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: 8,
+    color: '#E2E8F0',
+    fontSize: 13.5,
+    fontFamily: "'DM Sans', sans-serif",
+    outline: 'none',
+    transition: 'border-color 0.15s',
+  };
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      {/* Section Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+          Share Your Feedback
+        </h2>
+        <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--text-dim)', fontFamily: "'DM Sans', sans-serif" }}>
+          Help us improve the platform. Report bugs, suggest features, or give general feedback.
+        </p>
+      </div>
+
+      {/* Card */}
+      <div style={{
+        background: 'var(--card-bg)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: '20px 24px',
+      }}>
+        {submitted ? (
+          <div style={{ padding: '24px 0', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🎉</div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, color: '#E2E8F0', letterSpacing: '-0.02em', fontFamily: "'DM Sans', sans-serif" }}>
+              Feedback Submitted!
+            </h3>
+            <p style={{ margin: 0, fontSize: 13, color: '#64748B', fontFamily: "'DM Sans', sans-serif" }}>
+              Thank you! We read every submission.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Type selector */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {TYPE_OPTIONS.map(opt => {
+                const active = type === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setType(opt.key)}
+                    style={{
+                      padding: '9px 12px', borderRadius: 8, textAlign: 'left',
+                      border: `1px solid ${active ? 'rgba(124,58,237,0.5)' : 'rgba(255,255,255,0.07)'}`,
+                      background: active ? 'rgba(124,58,237,0.14)' : 'rgba(255,255,255,0.03)',
+                      cursor: 'pointer', transition: 'all 0.12s',
+                    }}
+                  >
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: active ? '#A78BFA' : '#94A3B8', marginBottom: 2 }}>
+                      {opt.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#475569' }}>{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Priority */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace", flexShrink: 0 }}>
+                Priority:
+              </span>
+              {PRIORITY_OPTIONS.map(opt => {
+                const active = priority === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setPriority(opt.key)}
+                    style={{
+                      padding: '4px 10px', borderRadius: 6,
+                      border: `1px solid ${active ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                      background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      color: active ? '#E2E8F0' : '#64748B',
+                      fontSize: 12, cursor: 'pointer',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      transition: 'all 0.12s',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Title */}
+            <input
+              placeholder="Short title (e.g. Simulation crashes when no nodes)"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,58,237,0.5)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)')}
+            />
+
+            {/* Description */}
+            <textarea
+              placeholder={
+                type === 'bug'
+                  ? 'Describe what happened and steps to reproduce:\n1.\n2.\n3.'
+                  : 'Describe your feedback in detail...'
+              }
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={4}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.55 }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,58,237,0.5)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)')}
+            />
+
+            {/* Email */}
+            <input
+              type="email"
+              placeholder="Your email (optional — for follow-up)"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(124,58,237,0.5)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)')}
+            />
+
+            {error && (
+              <div style={{
+                padding: '8px 12px', borderRadius: 7,
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.2)',
+                fontSize: 12.5, color: '#FCA5A5',
+              }}>
+                {error}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              onClick={submit}
+              disabled={!title.trim() || !description.trim() || submitting}
+              style={{
+                padding: '10px 20px', borderRadius: 9, border: 'none',
+                background: !title.trim() || !description.trim() ? 'rgba(124,58,237,0.3)' : '#7C3AED',
+                color: 'white', fontSize: 13.5, fontWeight: 600,
+                fontFamily: "'DM Sans', sans-serif",
+                cursor: !title.trim() || !description.trim() ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.7 : 1,
+                transition: 'all 0.15s',
+                boxShadow: '0 0 14px rgba(124,58,237,0.25)',
+              }}
+            >
+              {submitting ? 'Sending…' : 'Send Feedback →'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

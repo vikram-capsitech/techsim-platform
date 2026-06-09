@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps, NodeResizer, useReactFlow } from '@xyflow/react';
+import { Handle, Position, type NodeProps, NodeResizer, NodeToolbar, useReactFlow } from '@xyflow/react';
 import { CATEGORY_META, type Category } from '../data/nodes';
 import { NodeIcon } from './NodeIcon';
 import { SERVICE_ICONS } from '../data/serviceIcons';
@@ -43,23 +43,39 @@ const CATEGORY_COLORS: Record<Category, string> = {
   monitoring:     '#6366F1',
 };
 
-// Shared button style for the floating action bar
-const actionBtnBase: React.CSSProperties = {
-  width: 22,
-  height: 22,
-  borderRadius: 5,
-  background: 'rgba(13,13,16,0.92)',
-  border: '1px solid rgba(255,255,255,0.10)',
-  color: '#64748B',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 11,
-  transition: 'all 0.12s',
-  padding: 0,
-  backdropFilter: 'blur(6px)',
-};
+function ToolbarAction({
+  icon, title, onClick, hoverBg, hoverBorder, hoverColor,
+}: {
+  icon: string; title: string; onClick: (e: React.MouseEvent) => void;
+  hoverBg: string; hoverBorder: string; hoverColor: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 26, height: 26, borderRadius: 6,
+        background: 'transparent',
+        border: '1px solid transparent',
+        color: '#64748B', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 13, transition: 'all 0.12s', padding: 0,
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = hoverBg;
+        e.currentTarget.style.borderColor = hoverBorder;
+        e.currentTarget.style.color = hoverColor;
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.borderColor = 'transparent';
+        e.currentTarget.style.color = '#64748B';
+      }}
+    >
+      {icon}
+    </button>
+  );
+}
 
 export const TechNode = memo(function TechNode({
   id,
@@ -78,7 +94,7 @@ export const TechNode = memo(function TechNode({
   const isDown = status === 'down';
   const isOverloaded = status === 'overloaded' || status === 'critical';
 
-  const { updateNodeData, setNodes } = useReactFlow();
+  const { updateNodeData, setNodes, getNodes } = useReactFlow();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
 
@@ -91,6 +107,19 @@ export const TechNode = memo(function TechNode({
   const deleteNode = (e: React.MouseEvent) => {
     e.stopPropagation();
     setNodes(ns => ns.filter(n => n.id !== id));
+  };
+
+  const duplicateNode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const src = getNodes().find(n => n.id === id);
+    if (!src) return;
+    const newId = `${id}_copy_${Date.now()}`;
+    setNodes(ns => [...ns, {
+      ...src,
+      id: newId,
+      position: { x: src.position.x + 24, y: src.position.y + 24 },
+      selected: false,
+    }]);
   };
 
   const openSettings = (e: React.MouseEvent) => {
@@ -158,71 +187,25 @@ export const TechNode = memo(function TechNode({
       <Handle id="left"   type="target" position={Position.Left}   style={handleStyle} />
       <Handle id="right"  type="source" position={Position.Right}  style={handleStyle} />
 
-      {/* ── Floating action bar — appears ABOVE the node card on hover ── */}
-      <div
-        className="node-actions nodrag nopan"
-        style={{
-          position: 'absolute',
-          top: -32,
-          right: 0,
-          display: 'flex',
-          gap: 3,
-          zIndex: 10,
-          // opacity & pointer-events controlled by CSS (.react-flow__node:hover .node-actions)
-        }}
-      >
-        <button
-          onClick={openKnowledge}
-          title="Learn about this component"
-          style={actionBtnBase}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(6,182,212,0.18)';
-            e.currentTarget.style.borderColor = 'rgba(6,182,212,0.4)';
-            e.currentTarget.style.color = '#06B6D4';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(13,13,16,0.92)';
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
-            e.currentTarget.style.color = '#64748B';
-          }}
-        >
-          📚
-        </button>
-        <button
-          onClick={openSettings}
-          title="Configure"
-          style={actionBtnBase}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(99,102,241,0.18)';
-            e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)';
-            e.currentTarget.style.color = '#818CF8';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(13,13,16,0.92)';
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
-            e.currentTarget.style.color = '#64748B';
-          }}
-        >
-          ⚙
-        </button>
-        <button
-          onClick={deleteNode}
-          title="Delete node (Del)"
-          style={actionBtnBase}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
-            e.currentTarget.style.borderColor = 'rgba(239,68,68,0.35)';
-            e.currentTarget.style.color = '#EF4444';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(13,13,16,0.92)';
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
-            e.currentTarget.style.color = '#64748B';
-          }}
-        >
-          🗑
-        </button>
-      </div>
+      {/* ── NodeToolbar — renders in a React Flow portal, never overlaps other nodes ── */}
+      <NodeToolbar isVisible={!!selected} position={Position.Top} offset={8} className="nodrag nopan">
+        <div style={{
+          display: 'flex', gap: 3,
+          background: 'rgba(13,13,16,0.96)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          borderRadius: 8, padding: 4,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+        }}>
+          <ToolbarAction icon="📚" title="Learn" onClick={openKnowledge}
+            hoverBg="rgba(6,182,212,0.18)" hoverBorder="rgba(6,182,212,0.4)" hoverColor="#06B6D4" />
+          <ToolbarAction icon="⚙" title="Configure" onClick={openSettings}
+            hoverBg="rgba(99,102,241,0.18)" hoverBorder="rgba(99,102,241,0.4)" hoverColor="#818CF8" />
+          <ToolbarAction icon="📋" title="Duplicate" onClick={duplicateNode}
+            hoverBg="rgba(16,185,129,0.18)" hoverBorder="rgba(16,185,129,0.4)" hoverColor="#10B981" />
+          <ToolbarAction icon="🗑" title="Delete (Del)" onClick={deleteNode}
+            hoverBg="rgba(239,68,68,0.15)" hoverBorder="rgba(239,68,68,0.35)" hoverColor="#EF4444" />
+        </div>
+      </NodeToolbar>
 
       {/* ── Visual card — normal flow layout so React Flow can measure height ── */}
       <div

@@ -1,4 +1,4 @@
-import { HeartPulse, ServerCrash, Unplug, Waves, Zap, AlertTriangle, Play, Square, RefreshCw, Clock, Layers3 } from 'lucide-react';
+import { AlertTriangle, Play, Square, RefreshCw, Clock, Layers3 } from 'lucide-react';
 import type { SimMetrics } from '../simulation/SimulationEngine';
 import type { ValidationIssue } from '../types';
 
@@ -86,29 +86,132 @@ function SimSlider({
   );
 }
 
-// ── Chaos button ─────────────────────────────────────────────────────────────
-function ChaosBtn({
-  icon, label, color, disabled, onClick,
-}: { icon: React.ReactNode; label: string; color: string; disabled: boolean; onClick: () => void }) {
+// ── Node-type → sim role mapping ─────────────────────────────────────────────
+const NODE_TYPE_TO_ROLE: Record<string, string> = {
+  'load-balancer': 'loadBalancer', 'api-gateway': 'loadBalancer',
+  'router': 'loadBalancer', 'waf': 'loadBalancer',
+  'postgres': 'database', 'mysql': 'database', 'mongodb': 'database',
+  'elastic': 'database', 'data-warehouse': 'database', 'timeseries-db': 'database',
+  'redis': 'cache',
+  'kafka': 'queue', 'rabbitmq': 'queue', 'sqs': 'queue',
+  'pubsub': 'queue', 'event-bus': 'queue', 'nats': 'queue',
+  'microservice': 'microservice', 'api-server': 'microservice',
+  'worker': 'microservice', 'lambda': 'microservice',
+  'cdn': 'cdn',
+};
+
+const CHAOS_BY_ROLE: Record<string, { label: string; method: string }[]> = {
+  loadBalancer: [
+    { label: 'Node Crash',       method: 'crash' },
+    { label: 'Config Error',     method: 'crash' },
+    { label: 'Connection Flood', method: 'surge' },
+    { label: 'SSL Cert Expire',  method: 'crash' },
+  ],
+  database: [
+    { label: 'Primary Failure',  method: 'crash' },
+    { label: 'Disk Full',        method: 'crash' },
+    { label: 'Slow Queries',     method: 'crash' },
+    { label: 'Replication Lag',  method: 'crash' },
+    { label: 'Conn Pool Exhausted', method: 'crash' },
+  ],
+  cache: [
+    { label: 'Cache Miss Storm', method: 'crash' },
+    { label: 'Memory OOM',       method: 'crash' },
+    { label: 'Eviction Storm',   method: 'crash' },
+    { label: 'Network Partition',method: 'crash' },
+  ],
+  queue: [
+    { label: 'Queue Full',       method: 'crash' },
+    { label: 'Consumer Lag',     method: 'crash' },
+    { label: 'Poison Message',   method: 'crash' },
+    { label: 'Broker Down',      method: 'crash' },
+  ],
+  microservice: [
+    { label: 'Memory Leak',      method: 'crash' },
+    { label: 'Thread Exhaustion',method: 'crash' },
+    { label: 'Deadlock',         method: 'crash' },
+    { label: 'CPU Spike',        method: 'crash' },
+  ],
+  cdn: [
+    { label: 'Cache Invalidation', method: 'crash' },
+    { label: 'Origin Timeout',     method: 'crash' },
+    { label: 'DDoS',               method: 'surge' },
+  ],
+  default: [
+    { label: 'Node Crash',       method: 'crash' },
+    { label: 'CPU Spike',        method: 'crash' },
+    { label: 'Memory Leak',      method: 'crash' },
+    { label: 'Net Partition',    method: 'crash' },
+  ],
+};
+
+// ── Chaos area ────────────────────────────────────────────────────────────────
+function ChaosArea({ isRunning, selectedNodeId, selectedNodeTypeId, selectedEdgeId, injectChaos }: {
+  isRunning: boolean;
+  selectedNodeId: string | null;
+  selectedNodeTypeId: string | null;
+  selectedEdgeId: string | null;
+  injectChaos: (type: string, targetId: string) => void;
+}) {
+  const muted: React.CSSProperties = {
+    fontSize: 10, color: '#3A3A52',
+    fontFamily: "'IBM Plex Mono', monospace",
+    whiteSpace: 'nowrap', flexShrink: 0,
+  };
+
+  if (!isRunning) {
+    return <span style={muted}>▶ start sim first</span>;
+  }
+
+  // Edge chaos — shown when an edge is selected and no node is selected
+  if (!selectedNodeId && selectedEdgeId) {
+    return (
+      <div style={{ display: 'flex', gap: 4 }}>
+        <ScenarioBtn label="⚡ Latency" color="#FACC15"
+          onClick={() => injectChaos('latency', selectedEdgeId)} />
+        <ScenarioBtn label="✂ Partition" color="#C084FC"
+          onClick={() => injectChaos('partition', selectedEdgeId)} />
+      </div>
+    );
+  }
+
+  if (!selectedNodeId) {
+    return <span style={muted}>click a node to inject chaos</span>;
+  }
+
+  const role = NODE_TYPE_TO_ROLE[selectedNodeTypeId ?? ''] ?? 'default';
+  const scenarios = CHAOS_BY_ROLE[role] ?? CHAOS_BY_ROLE.default;
+
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap', overflow: 'hidden' }}>
+      {scenarios.map(s => (
+        <ScenarioBtn key={s.label} label={`💥 ${s.label}`} color="#F87171"
+          onClick={() => injectChaos(s.method, s.method === 'surge' ? '' : selectedNodeId)} />
+      ))}
+      <ScenarioBtn label="💚 Heal" color="#4ADE80"
+        onClick={() => injectChaos('heal', selectedNodeId)} />
+    </div>
+  );
+}
+
+function ScenarioBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: '4px 8px', borderRadius: 6,
-        border: `1px solid ${disabled ? 'rgba(255,255,255,0.06)' : color + '44'}`,
-        background: disabled ? 'transparent' : `${color}12`,
-        color: disabled ? '#3A3A52' : color,
+        display: 'inline-flex', alignItems: 'center',
+        padding: '3px 8px', borderRadius: 6,
+        border: `1px solid ${color}44`,
+        background: `${color}12`,
+        color,
         fontSize: 10, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'background 0.12s, transform 0.1s',
-        whiteSpace: 'nowrap', flexShrink: 0,
+        cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+        transition: 'background 0.12s',
       }}
-      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = `${color}22`; }}
-      onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = `${color}12`; }}
+      onMouseEnter={e => (e.currentTarget.style.background = `${color}22`)}
+      onMouseLeave={e => (e.currentTarget.style.background = `${color}12`)}
     >
-      {icon}{label}
+      {label}
     </button>
   );
 }
@@ -166,6 +269,7 @@ export interface BottomBarProps {
   issues: ValidationIssue[];
   onIssuesClick: () => void;
   selectedNodeId: string | null;
+  selectedNodeTypeId: string | null;
   selectedEdgeId: string | null;
   injectChaos: (type: string, targetId: string) => void;
   speed: number;
@@ -181,7 +285,7 @@ export function BottomBar({
   isRunning, onToggle,
   metrics,
   issues, onIssuesClick,
-  selectedNodeId, selectedEdgeId,
+  selectedNodeId, selectedNodeTypeId, selectedEdgeId,
   injectChaos,
   speed, onSpeedChange,
   traffic, onTrafficChange,
@@ -270,24 +374,14 @@ export function BottomBar({
           ⚡ CHAOS
         </span>
 
-        {/* Chaos buttons */}
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap' }}>
-          <ChaosBtn icon={<ServerCrash size={10} />} label="Crash" color="#F87171"
-            disabled={!selectedNodeId || !isRunning}
-            onClick={() => selectedNodeId && injectChaos('crash', selectedNodeId)} />
-          <ChaosBtn icon={<HeartPulse size={10} />} label="Heal" color="#4ADE80"
-            disabled={!selectedNodeId || !isRunning}
-            onClick={() => selectedNodeId && injectChaos('heal', selectedNodeId)} />
-          <ChaosBtn icon={<Waves size={10} />} label="10× Surge" color="#FB923C"
-            disabled={!isRunning}
-            onClick={() => injectChaos('surge', '')} />
-          <ChaosBtn icon={<Zap size={10} />} label="Latency" color="#FACC15"
-            disabled={!selectedEdgeId || !isRunning}
-            onClick={() => selectedEdgeId && injectChaos('latency', selectedEdgeId)} />
-          <ChaosBtn icon={<Unplug size={10} />} label="Partition" color="#C084FC"
-            disabled={!selectedEdgeId || !isRunning}
-            onClick={() => selectedEdgeId && injectChaos('partition', selectedEdgeId)} />
-        </div>
+        {/* Dynamic chaos area */}
+        <ChaosArea
+          isRunning={isRunning}
+          selectedNodeId={selectedNodeId}
+          selectedNodeTypeId={selectedNodeTypeId}
+          selectedEdgeId={selectedEdgeId}
+          injectChaos={injectChaos}
+        />
       </div>
 
       <Div />

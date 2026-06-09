@@ -54,16 +54,56 @@ export const authApi = {
     }),
 
   me: () => request<AuthUser>('/api/auth/me'),
+
+  updateProfile: (username: string, email: string) =>
+    request<AuthUser>('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ username, email }),
+    }),
 };
 
 // ── Diagrams ─────────────────────────────────────────────────────────────────
+export type DiagramSummary = {
+  _id: string;
+  title: string;
+  module: string;
+  thumbnailUrl?: string;
+  updatedAt: string;
+  forkCount?: number;
+  isPublic?: boolean;
+};
+
 export const diagramApi = {
-  save: (title: string, module: string, canvasJson: string) =>
-    request<{ id: string }>('/api/diagrams', {
+  save: (title: string, module: string, canvasJson: any) =>
+    request<any>('/api/diagrams', {
       method: 'POST',
       body: JSON.stringify({ title, module, canvasJson }),
     }),
 
+  get: (id: string) =>
+    request<any>(`/api/diagrams/${id}`),
+
+  update: (id: string, title: string, canvasJson: any) =>
+    request<any>(`/api/diagrams/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title, canvasJson }),
+    }),
+
+  autosave: (id: string, canvasJson: any) =>
+    request<any>(`/api/diagrams/${id}/autosave`, {
+      method: 'PUT',
+      body: JSON.stringify({ canvasJson }),
+    }),
+
   list: () =>
     request<{ id: string; title: string; module: string; updatedAt: string }[]>('/api/diagrams'),
+
+  my: () =>
+    request<DiagramSummary[]>('/api/diagrams/my'),
+
+  delete: (id: string) =>
+    request<{ message: string }>(`/api/diagrams/${id}`, { method: 'DELETE' }),
+
+  fork: (id: string) =>
+    request<DiagramSummary>(`/api/diagrams/${id}/fork`, { method: 'POST' }),
 };

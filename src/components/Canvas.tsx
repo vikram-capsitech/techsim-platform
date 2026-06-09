@@ -9,6 +9,8 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  NodeResizer,
+  type NodeProps,
   type Node,
   type Edge,
   type Connection,
@@ -22,13 +24,50 @@ import { GlowEdge, type EdgeRoutingType } from './GlowEdge';
 import { AIGeneratorPanel } from './AIGeneratorPanel';
 import { NodeSettingsPanel } from './NodeSettingsPanel';
 import { KnowledgePanel } from './KnowledgePanel';
+import { ArchitectureChat } from './ArchitectureChat';
+import { ToolRecommendation, TOOL_REC_TRIGGERS } from './ToolRecommendation';
 import { useTheme } from '../context/ThemeContext';
 import { CATEGORY_META, type Category } from '../data/nodes';
 import { validateArchitecture, invalidEdgeIds } from '../engine/validator';
 import type { EdgeProtocol, ValidationIssue } from '../types';
 import type { EdgeState, NodeState } from '../simulation/SimulationEngine';
 
-const nodeTypes = { techNode: TechNode };
+// ── Group node ─────────────────────────────────────────────────────────────
+function GroupNode({ data, selected }: NodeProps) {
+  const gData = data as { label?: string; color?: string };
+  const color = gData.color ?? '#7C3AED';
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      border: `2px dashed ${color}`,
+      borderRadius: 12,
+      background: `${color}08`,
+      position: 'relative',
+      boxSizing: 'border-box',
+    }}>
+      <NodeResizer
+        isVisible={!!selected}
+        minWidth={160} minHeight={90}
+        lineStyle={{ border: `1px solid ${color}` }}
+        handleStyle={{ background: color, border: 'none', borderRadius: 2, width: 8, height: 8 }}
+      />
+      <div style={{
+        position: 'absolute', top: -13, left: 12,
+        background: 'var(--bg)',
+        padding: '0 8px',
+        color,
+        fontSize: 10, fontWeight: 700,
+        fontFamily: "'IBM Plex Mono', monospace",
+        textTransform: 'uppercase', letterSpacing: '0.08em',
+        pointerEvents: 'none',
+      }}>
+        {gData.label || 'Group'}
+      </div>
+    </div>
+  );
+}
+
+const nodeTypes = { techNode: TechNode, group: GroupNode };
 const edgeTypes = { glowEdge: GlowEdge };
 const SNAP_GRID: [number, number] = [16, 16];
 
@@ -98,6 +137,7 @@ interface CanvasProps {
   onEdgeSelect?: (edgeId: string | null) => void;
   onChaosOnNode?: (chaosId: string, nodeId: string) => void;
   onPresetsClick?: () => void;
+  onOpenWizard?: () => void;
   isSimulationRunning?: boolean;
   nodeStates?: Map<string, NodeState>;
   edgeStates?: Map<string, EdgeState>;
@@ -113,6 +153,7 @@ export function Canvas({
   onEdgeSelect,
   onChaosOnNode,
   onPresetsClick,
+  onOpenWizard,
   isSimulationRunning = false,
   nodeStates = new Map(),
   edgeStates = new Map(),
@@ -128,9 +169,12 @@ export function Canvas({
   // Per-type node counters — never reset so IDs stay unique within a session
   const nodeTypeCountsRef = useRef<Map<string, number>>(new Map());
 
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [settingsNodeId, setSettingsNodeId] = useState<string | null>(null);
-  const [knowledgeTarget, setKnowledgeTarget] = useState<{ nodeTypeId: string; label: string } | null>(null);
+  const [showAIPanel,        setShowAIPanel]        = useState(false);
+  const [showChat,           setShowChat]           = useState(false);
+  const [toolRecNodeTypeId,  setToolRecNodeTypeId]  = useState<string | null>(null);
+  const [settingsNodeId,     setSettingsNodeId]     = useState<string | null>(null);
+  const [knowledgeTarget,    setKnowledgeTarget]    = useState<{ nodeTypeId: string; label: string } | null>(null);
+  const [contextMenu,        setContextMenu]        = useState<{ x: number; y: number; selectedCount: number } | null>(null);
 
   // Listen for gear-icon open-settings events dispatched by TechNode
   useEffect(() => {
@@ -152,12 +196,21 @@ export function Canvas({
   }, []);
 
   // Default routing type for newly drawn edges
-  const [defaultEdgeType, setDefaultEdgeType] = useState<EdgeRoutingType>('bezier');
-  const defaultEdgeTypeRef = useRef<EdgeRoutingType>('bezier');
+  const [defaultEdgeType, setDefaultEdgeType] = useState<EdgeRoutingType>(
+    () => (localStorage.getItem('edge_routing') as EdgeRoutingType) ?? 'bezier'
+  );
+  const defaultEdgeTypeRef = useRef<EdgeRoutingType>(
+    (localStorage.getItem('edge_routing') as EdgeRoutingType) ?? 'bezier'
+  );
   const updateDefaultEdgeType = (t: EdgeRoutingType) => {
     defaultEdgeTypeRef.current = t;
     setDefaultEdgeType(t);
+    localStorage.setItem('edge_routing', t);
   };
+
+  const [showGrid] = useState(() => localStorage.getItem('show_grid') !== 'false');
+  const [minimap]  = useState(() => localStorage.getItem('show_minimap') !== 'false');
+  const [animPkts] = useState(() => localStorage.getItem('anim_packets') !== 'false');
 
   useEffect(() => {
     onTopologyChange?.(nodes, edges);
@@ -305,6 +358,7 @@ export function Canvas({
         setTimeout(() => runValidate(next, edges), 0);
         return next;
       });
+      if (TOOL_REC_TRIGGERS.has(type)) setToolRecNodeTypeId(type);
     },
     [screenToFlowPosition, setNodes, edges, onCountChange, runValidate],
   );
@@ -326,7 +380,78 @@ export function Canvas({
   const onPaneClick = useCallback(() => {
     onNodeSelect(null);
     onEdgeSelect?.(null);
+    setContextMenu(null);
   }, [onEdgeSelect, onNodeSelect]);
+
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const selected = nodes.filter(n => n.selected && n.type !== 'group');
+    if (selected.length >= 2) {
+      setContextMenu({ x: e.clientX, y: e.clientY, selectedCount: selected.length });
+    }
+  }, [nodes]);
+
+  const groupSelectedNodes = useCallback(() => {
+    const toGroup = nodes.filter(n => n.selected && n.type !== 'group');
+    if (toGroup.length < 2) return;
+
+    const groupId = `group_${Date.now()}`;
+    const pad = 28;
+    const minX = Math.min(...toGroup.map(n => n.position.x));
+    const minY = Math.min(...toGroup.map(n => n.position.y));
+    const maxX = Math.max(...toGroup.map(n => n.position.x + ((n.style?.width as number) ?? 210)));
+    const maxY = Math.max(...toGroup.map(n => n.position.y + ((n.measured?.height as number) ?? 80)));
+
+    const groupNode: Node = {
+      id: groupId,
+      type: 'group',
+      position: { x: minX - pad, y: minY - pad - 14 },
+      style: { width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 + 14 },
+      data: { label: 'Group', color: '#7C3AED' },
+      selectable: true,
+    };
+
+    setNodes(ns => [
+      groupNode,
+      ...ns.map(n => {
+        const hit = toGroup.find(g => g.id === n.id);
+        if (!hit) return n;
+        return {
+          ...n,
+          parentId: groupId,
+          extent: 'parent' as const,
+          position: {
+            x: n.position.x - groupNode.position.x,
+            y: n.position.y - groupNode.position.y,
+          },
+          selected: false,
+        };
+      }),
+    ]);
+    setContextMenu(null);
+  }, [nodes, setNodes]);
+
+  const deleteSelectedNodes = useCallback(() => {
+    setNodes(ns => ns.filter(n => !n.selected));
+    setContextMenu(null);
+  }, [setNodes]);
+
+  const duplicateSelectedNodes = useCallback(() => {
+    const selected = nodes.filter(n => n.selected && n.type !== 'group');
+    const now = Date.now();
+    setNodes(ns => [
+      ...ns.map(n => ({ ...n, selected: false })),
+      ...selected.map((n, i) => ({
+        ...n,
+        id: `${n.id}_copy_${now + i}`,
+        position: { x: n.position.x + 24, y: n.position.y + 24 },
+        selected: true,
+        parentId: undefined,
+        extent: undefined,
+      })),
+    ]);
+    setContextMenu(null);
+  }, [nodes, setNodes]);
 
   const minimapColor = (node: Node) =>
     CATEGORY_META[(node.data as TechNodeData).category]?.color ?? '#6366F1';
@@ -417,9 +542,103 @@ export function Canvas({
           <span style={{ fontSize: 13 }}>✨</span>
           AI Generate
         </button>
+        {onOpenWizard && (
+          <button
+            onClick={onOpenWizard}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 12px',
+              background: 'rgba(16,185,129,0.10)',
+              border: '1px solid rgba(16,185,129,0.35)',
+              borderRadius: 8, color: '#34D399',
+              fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace",
+              fontWeight: 600, cursor: 'pointer',
+              backdropFilter: 'blur(8px)', boxShadow: '0 2px 16px rgba(0,0,0,0.4)',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.2)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.6)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.10)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)'; }}
+          >
+            <span style={{ fontSize: 13 }}>📋</span>
+            Requirements
+          </button>
+        )}
+        <button
+          onClick={() => setShowChat(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '5px 12px',
+            background: showChat ? 'rgba(96,165,250,0.22)' : 'rgba(96,165,250,0.10)',
+            border: `1px solid ${showChat ? 'rgba(96,165,250,0.6)' : 'rgba(96,165,250,0.35)'}`,
+            borderRadius: 8, color: '#60A5FA',
+            fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace",
+            fontWeight: 600, cursor: 'pointer',
+            backdropFilter: 'blur(8px)', boxShadow: '0 2px 16px rgba(0,0,0,0.4)',
+            transition: 'all 0.15s',
+          }}
+        >
+          <span style={{ fontSize: 13 }}>💬</span>
+          Ask AI
+        </button>
       </div>
 
       {showAIPanel && <AIGeneratorPanel onClose={() => setShowAIPanel(false)} />}
+      {showChat && (
+        <ArchitectureChat
+          architectureContext={JSON.stringify({ nodes: nodes.map(n => ({ id: n.id, type: (n.data as TechNodeData).nodeTypeId, label: (n.data as TechNodeData).label })), edgeCount: edges.length })}
+          onClose={() => setShowChat(false)}
+        />
+      )}
+      {toolRecNodeTypeId && (
+        <ToolRecommendation
+          nodeTypeId={toolRecNodeTypeId}
+          onClose={() => setToolRecNodeTypeId(null)}
+        />
+      )}
+
+      {/* Canvas right-click context menu */}
+      {contextMenu && (
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+            onClick={() => setContextMenu(null)}
+            onContextMenu={e => { e.preventDefault(); setContextMenu(null); }}
+          />
+          <div style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 100,
+            background: 'rgba(13,13,18,0.97)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: 4,
+            minWidth: 200,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(12px)',
+          }}>
+            <ContextMenuItem
+              icon="📦"
+              label={`Group ${contextMenu.selectedCount} nodes`}
+              onClick={groupSelectedNodes}
+              color="#7C3AED"
+            />
+            <ContextMenuItem
+              icon="📋"
+              label="Duplicate selection"
+              onClick={duplicateSelectedNodes}
+            />
+            <div style={{ height: 1, background: 'var(--border)', margin: '3px 0' }} />
+            <ContextMenuItem
+              icon="🗑"
+              label="Delete selection"
+              onClick={deleteSelectedNodes}
+              color="#EF4444"
+              danger
+            />
+          </div>
+        </>
+      )}
       <NodeSettingsPanel
         nodeId={settingsNodeId}
         onClose={() => setSettingsNodeId(null)}
@@ -443,6 +662,7 @@ export function Canvas({
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
+        onContextMenu={onContextMenu}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         snapToGrid
@@ -456,22 +676,58 @@ export function Canvas({
         proOptions={{ hideAttribution: true }}
         style={{ background: 'var(--bg)' }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#252535" />
+        {showGrid && <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#252535" />}
         <Controls position="bottom-right" showInteractive={false} />
-        <MiniMap
-          position="bottom-right"
-          style={{ marginBottom: 8 }}
-          nodeColor={minimapColor}
-          maskColor="rgba(13,13,16,0.75)"
-          pannable
-          zoomable
-        />
-        {isSimulationRunning && (
+        {minimap && (
+          <MiniMap
+            position="bottom-right"
+            style={{ marginBottom: 8 }}
+            nodeColor={minimapColor}
+            maskColor="rgba(13,13,16,0.75)"
+            pannable
+            zoomable
+          />
+        )}
+        {isSimulationRunning && animPkts && (
           <PacketOverlay edgeStates={edgeStates} />
         )}
         {nodes.length === 0 && <EmptyState />}
       </ReactFlow>
     </div>
+  );
+}
+
+// ── Context menu item ──────────────────────────────────────────────────────
+function ContextMenuItem({
+  icon, label, onClick, color, danger,
+}: {
+  icon: string; label: string; onClick: () => void; color?: string; danger?: boolean;
+}) {
+  const base = danger ? '#EF4444' : color ?? 'var(--text)';
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+        padding: '8px 12px', borderRadius: 6,
+        background: 'transparent', border: 'none',
+        color: base, fontSize: 13,
+        fontFamily: "'DM Sans', sans-serif",
+        cursor: 'pointer', textAlign: 'left',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = danger
+          ? 'rgba(239,68,68,0.1)'
+          : color
+          ? `${color}18`
+          : 'var(--card-bg)';
+      }}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
+      {label}
+    </button>
   );
 }
 
@@ -507,7 +763,7 @@ function PacketOverlay({
       if (edgeState.isPartitioned || !edgeState.packets.length) return;
 
       // Get the actual rendered SVG path for this edge (GlowEdge sets id={edgeId} on its main path)
-      const pathEl = document.getElementById(edgeId) as SVGPathElement | null;
+      const pathEl = document.getElementById(edgeId) as unknown as SVGPathElement | null;
       if (!pathEl) return;
       const pathData = pathEl.getAttribute('d');
       if (!pathData) return;

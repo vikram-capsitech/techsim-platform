@@ -2,6 +2,7 @@ import { useTheme, type Theme } from '../context/ThemeContext';
 
 const OPTIONS: { value: Theme; icon: string; label: string }[] = [
   { value: 'dark',   icon: '🌙', label: 'Dark'   },
+  { value: 'darker', icon: '🌑', label: 'Darker' },
   { value: 'light',  icon: '☀️', label: 'Light'  },
   { value: 'system', icon: '🖥️', label: 'System' },
 ];

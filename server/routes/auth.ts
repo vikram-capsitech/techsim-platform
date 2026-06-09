@@ -11,7 +11,11 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
   try {
     const { username, email, password, avatarUrl, plan } = req.body;
 
-    if (!username || !email || !password) {
+    if (typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Username, email, and password must be strings' });
+    }
+
+    if (!username.trim() || !email.trim() || !password) {
       return res.status(400).json({ error: 'Username, email, and password are required' });
     }
 
@@ -68,7 +72,11 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Email and password must be strings' });
+    }
+
+    if (!email.trim() || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
@@ -106,6 +114,62 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
         plan: user.plan,
         createdAt: user.createdAt
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/auth/profile — update profile (username and email)
+router.put('/profile', authMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { username, email } = req.body;
+
+    if (typeof username !== 'string' || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Username and email must be strings' });
+    }
+
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedUsername || !trimmedEmail) {
+      return res.status(400).json({ error: 'Username and email cannot be empty' });
+    }
+
+    if (!trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
+      return res.status(400).json({ error: 'Invalid email address format' });
+    }
+
+    // Check if new username or email is already taken by another user
+    const existingUser = await User.findOne({
+      _id: { $ne: req.user.userId },
+      $or: [{ username: trimmedUsername }, { email: trimmedEmail }]
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username or email already in use' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.username = trimmedUsername;
+    user.email = trimmedEmail;
+    await user.save();
+
+    return res.status(200).json({
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      plan: user.plan,
+      createdAt: user.createdAt
     });
   } catch (error) {
     next(error);

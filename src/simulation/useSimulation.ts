@@ -3,6 +3,7 @@ import type { Edge, Node } from '@xyflow/react';
 import type { ResolvedTheme } from '../context/ThemeContext';
 import {
   SimulationEngine,
+  type ChaosEvent,
   type EdgeState,
   type NodeState,
   type SimMetrics,
@@ -26,6 +27,8 @@ interface UseSimulationResult {
   setSpeed: (v: number) => void;
   setBaseRPS: (rps: number) => void;
   setTraffic: (traffic: number) => void;
+  getChaosLog: () => ChaosEvent[];
+  resetChaosLog: () => void;
   injectChaos: SimulationControls & ((type: string, targetId: string) => void);
   nodeStates: Map<string, NodeState>;
   edgeStates: Map<string, EdgeState>;
@@ -83,6 +86,8 @@ export function useSimulation(nodes: Node[], edges: Edge[], theme: ResolvedTheme
   const setTraffic = useCallback((traffic: number) => {
     engineRef.current?.setTrafficMultiplier(traffic);
   }, []);
+  const getChaosLog = useCallback(() => engineRef.current?.getChaosLog() ?? [], []);
+  const resetChaosLog = useCallback(() => engineRef.current?.resetChaosLog(), []);
 
   const injectChaos = useMemo<UseSimulationResult['injectChaos']>(() => {
     const dispatch = ((type: string, targetId: string) => {
@@ -131,6 +136,8 @@ export function useSimulation(nodes: Node[], edges: Edge[], theme: ResolvedTheme
     setSpeed,
     setBaseRPS,
     setTraffic,
+    getChaosLog,
+    resetChaosLog,
     injectChaos,
     nodeStates,
     edgeStates,

@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Bell, Settings, Save, LogOut, Loader2, CheckCircle, Play, Square } from 'lucide-react';
+import { Bell, Save, LogOut, Loader2, CheckCircle, Play, Square } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
 
 const TABS = [
-  { path: '/canvas',    label: 'System Design' },
-  { path: '/security',  label: 'Security' },
-  { path: '/k8s',       label: 'K8s' },
-  { path: '/db-schema', label: 'DB Schema' },
-  { path: '/network',   label: 'Network' },
+  { path: '/canvas',            label: 'System Design' },
+  { path: '/security',          label: 'Security' },
+  { path: '/k8s',               label: 'K8s' },
+  { path: '/db-schema',         label: 'DB Schema' },
+  { path: '/network',           label: 'Network' },
+  { path: '/my-architectures',  label: 'My Architectures' },
+  { path: '/discussion',        label: 'Discussion' },
+  { path: '/settings',          label: 'Settings' },
 ];
 
 interface NavbarProps {
@@ -86,7 +89,6 @@ export function Navbar({ onSave, onSimulationStart, simulationRunning = false }:
       {/* Right actions */}
       <div style={styles.actions}>
         <IconBtn><Bell size={15} /></IconBtn>
-        <IconBtn><Settings size={15} /></IconBtn>
         <ThemeSwitcher />
         <div style={styles.divider} />
 
