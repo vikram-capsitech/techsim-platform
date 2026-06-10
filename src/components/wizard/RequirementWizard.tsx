@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { aiApi } from '../../api/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type SystemType =
@@ -350,24 +351,7 @@ export function RequirementWizard({ onComplete, onSkip }: WizardProps) {
     setGenerating(true);
     setError(null);
     try {
-      const token = localStorage.getItem('techsim_token');
-      const groqKey = localStorage.getItem('groq_api_key') ?? '';
-      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
-      const res = await fetch('http://localhost:5000/api/ai/wizard', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
-          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
-        },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(body.error ?? `Error ${res.status}`);
-      }
-      const diagram = await res.json() as { nodes: any[]; edges: any[] };
+      const diagram = await aiApi.wizard(data);
       onComplete(diagram, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed');

@@ -15,6 +15,7 @@ async function seedContent() {
 
     // Upsert knowledge cards
     console.log('Upserting knowledge cards...');
+    await KnowledgeCard.deleteMany({});
     for (const card of knowledgeData.components) {
       await KnowledgeCard.findOneAndUpdate(
         { componentId: card.componentId },

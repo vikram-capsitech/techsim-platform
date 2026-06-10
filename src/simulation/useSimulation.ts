@@ -107,6 +107,9 @@ export function useSimulation(nodes: Node[], edges: Edge[], theme: ResolvedTheme
         case 'partition':
           engineRef.current?.networkPartition(targetId);
           break;
+        case 'memory_leak':
+          engineRef.current?.injectMemoryLeak(targetId);
+          break;
       }
     }) as UseSimulationResult['injectChaos'];
 

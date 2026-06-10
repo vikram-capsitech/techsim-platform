@@ -20,14 +20,14 @@ const feedback_1 = __importDefault(require("./routes/feedback"));
 const knowledge_1 = __importDefault(require("./routes/knowledge"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
-// Enable CORS options preflight for all routes and apply CORS settings
-app.options(/(.*)/, (0, cors_1.default)());
-app.use((0, cors_1.default)({
+const corsOptions = {
     origin: 'http://localhost:5173',
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Groq-API-Key', 'X-Gemini-API-Key'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-}));
+};
+app.use((0, cors_1.default)(corsOptions));
+app.options(/(.*)/, (0, cors_1.default)(corsOptions));
 // Body parser
 app.use(express_1.default.json());
 // Mount routes under /api

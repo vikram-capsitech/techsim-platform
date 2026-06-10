@@ -3,6 +3,7 @@ import theoryData from './theoryTracks.json';
 import quizData from './quizQuestions.json';
 import scenarioData from './presetScenarios.json';
 import chaosData from './chaosScenarios.json';
+import { getMappedComponentId, getKnowledgeCardById } from './componentIdMap';
 
 // ── Knowledge Cards ──────────────────────────────────────────────────────────
 
@@ -23,11 +24,21 @@ export interface KnowledgeCard {
 export function getKnowledgeCard(componentId: string): KnowledgeCard | undefined {
   const components = (knowledgeData as { components: KnowledgeCard[] }).components;
   if (!components?.length) return undefined;
-  // Normalize hyphens and spaces to underscores (canvas uses kebab, JSON uses snake_case)
+
+  // 1. Direct match
+  const direct = components.find(c => c.componentId === componentId);
+  if (direct) return direct;
+
+  // 2. Normalize hyphens/spaces to underscores
   const normalized = componentId.toLowerCase().replace(/[-\s]+/g, '_');
-  return components.find(
-    c => c.componentId === componentId || c.componentId === normalized,
-  );
+  const normalized_ = components.find(c => c.componentId === normalized);
+  if (normalized_) return normalized_;
+
+  // 3. Fuzzy map — handles camelCase, aliases, etc.
+  const mappedId = getMappedComponentId(componentId);
+  if (mappedId) return getKnowledgeCardById(mappedId);
+
+  return undefined;
 }
 
 // ── Theory Tracks ────────────────────────────────────────────────────────────

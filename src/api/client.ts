@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 const API_URL = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:5000';
 const TOKEN_KEY = 'techsim_token';
 
@@ -11,24 +13,50 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+// Create Axios instance
+const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 120000,
+});
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as Record<string, string>;
-    // Server returns { error: "..." } — fall back to message or status
-    throw new Error(body.error ?? body.message ?? `HTTP ${res.status}`);
+// Request interceptor to attach Authorization and API keys automatically
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    // Only attach AI keys to AI endpoints
+    const url = config.url || '';
+    if (url.includes('/api/ai') || url.includes('api/ai')) {
+      const groqKey = localStorage.getItem('groq_api_key');
+      if (groqKey) {
+        config.headers.set('X-Groq-API-Key', groqKey);
+      }
+
+      const geminiKey = localStorage.getItem('gemini_api_key');
+      if (geminiKey) {
+        config.headers.set('X-Gemini-API-Key', geminiKey);
+      }
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return res.json() as Promise<T>;
-}
+);
+
+// Response interceptor to handle errors cleanly
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Extract server error message or use fallback
+    const message = error.response?.data?.error ?? error.response?.data?.message ?? error.message;
+    return Promise.reject(new Error(message));
+  }
+);
 
 export type AuthUser = {
   _id: string;
@@ -41,25 +69,35 @@ export type AuthUser = {
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 export const authApi = {
-  register: (username: string, email: string, password: string) =>
-    request<{ token: string; user: AuthUser }>('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, email, password }),
-    }),
+  register: async (username: string, email: string, password: string) => {
+    const res = await apiClient.post<{ token: string; user: AuthUser }>('/api/auth/register', {
+      username,
+      email,
+      password,
+    });
+    return res.data;
+  },
 
-  login: (email: string, password: string) =>
-    request<{ token: string; user: AuthUser }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+  login: async (email: string, password: string) => {
+    const res = await apiClient.post<{ token: string; user: AuthUser }>('/api/auth/login', {
+      email,
+      password,
+    });
+    return res.data;
+  },
 
-  me: () => request<AuthUser>('/api/auth/me'),
+  me: async () => {
+    const res = await apiClient.get<AuthUser>('/api/auth/me');
+    return res.data;
+  },
 
-  updateProfile: (username: string, email: string) =>
-    request<AuthUser>('/api/auth/profile', {
-      method: 'PUT',
-      body: JSON.stringify({ username, email }),
-    }),
+  updateProfile: async (username: string, email: string) => {
+    const res = await apiClient.put<AuthUser>('/api/auth/profile', {
+      username,
+      email,
+    });
+    return res.data;
+  },
 };
 
 // ── Diagrams ─────────────────────────────────────────────────────────────────
@@ -73,49 +111,130 @@ export type DiagramSummary = {
   isPublic?: boolean;
 };
 
-export const diagramApi = {
-  save: (title: string, module: string, canvasJson: any, thumbnailUrl?: string) =>
-    request<any>('/api/diagrams', {
-      method: 'POST',
-      body: JSON.stringify({ title, module, canvasJson, ...(thumbnailUrl ? { thumbnailUrl } : {}) }),
-    }),
-
-  get: (id: string) =>
-    request<any>(`/api/diagrams/${id}`),
-
-  update: (id: string, title: string, canvasJson: any, thumbnailUrl?: string) =>
-    request<any>(`/api/diagrams/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ title, canvasJson, ...(thumbnailUrl ? { thumbnailUrl } : {}) }),
-    }),
-
-  autosave: (id: string, canvasJson: any) =>
-    request<any>(`/api/diagrams/${id}/autosave`, {
-      method: 'PUT',
-      body: JSON.stringify({ canvasJson }),
-    }),
-
-  list: () =>
-    request<{ id: string; title: string; module: string; updatedAt: string }[]>('/api/diagrams'),
-
-  my: () =>
-    request<DiagramSummary[]>('/api/diagrams/my'),
-
-  delete: (id: string) =>
-    request<{ message: string }>(`/api/diagrams/${id}`, { method: 'DELETE' }),
-
-  fork: (id: string) =>
-    request<DiagramSummary>(`/api/diagrams/${id}/fork`, { method: 'POST' }),
-
-  versions: (id: string) =>
-    request<DiagramVersion[]>(`/api/diagrams/${id}/versions`),
-
-  restore: (id: string, idx: number) =>
-    request<any>(`/api/diagrams/${id}/restore/${idx}`, { method: 'POST' }),
-};
-
 export type DiagramVersion = {
   canvasJson: { nodes: any[]; edges: any[] };
   savedAt: string;
   label: string;
 };
+
+export const diagramApi = {
+  save: async (title: string, module: string, canvasJson: any, thumbnailUrl?: string) => {
+    const res = await apiClient.post<any>('/api/diagrams', {
+      title,
+      module,
+      canvasJson,
+      ...(thumbnailUrl ? { thumbnailUrl } : {}),
+    });
+    return res.data;
+  },
+
+  get: async (id: string) => {
+    const res = await apiClient.get<any>(`/api/diagrams/${id}`);
+    return res.data;
+  },
+
+  update: async (id: string, title: string, canvasJson: any, thumbnailUrl?: string) => {
+    const res = await apiClient.put<any>(`/api/diagrams/${id}`, {
+      title,
+      canvasJson,
+      ...(thumbnailUrl ? { thumbnailUrl } : {}),
+    });
+    return res.data;
+  },
+
+  autosave: async (id: string, canvasJson: any) => {
+    const res = await apiClient.put<any>(`/api/diagrams/${id}/autosave`, {
+      canvasJson,
+    });
+    return res.data;
+  },
+
+  list: async () => {
+    const res = await apiClient.get<{ id: string; title: string; module: string; updatedAt: string }[]>('/api/diagrams');
+    return res.data;
+  },
+
+  my: async () => {
+    const res = await apiClient.get<DiagramSummary[]>('/api/diagrams/my');
+    return res.data;
+  },
+
+  delete: async (id: string) => {
+    const res = await apiClient.delete<{ message: string }>(`/api/diagrams/${id}`);
+    return res.data;
+  },
+
+  fork: async (id: string) => {
+    const res = await apiClient.post<DiagramSummary>(`/api/diagrams/${id}/fork`);
+    return res.data;
+  },
+
+  versions: async (id: string) => {
+    const res = await apiClient.get<DiagramVersion[]>(`/api/diagrams/${id}/versions`);
+    return res.data;
+  },
+
+  restore: async (id: string, idx: number) => {
+    const res = await apiClient.post<any>(`/api/diagrams/${id}/restore/${idx}`);
+    return res.data;
+  },
+};
+
+// ── AI Services ─────────────────────────────────────────────────────────────
+export const aiApi = {
+  chat: async (params: {
+    message: string;
+    architectureContext: any;
+    conversationHistory: { role: string; content: string }[];
+  }) => {
+    const res = await apiClient.post<{ response: string }>('/api/ai/chat', params);
+    return res.data;
+  },
+
+  wizard: async (data: any) => {
+    const res = await apiClient.post<{ nodes: any[]; edges: any[] }>('/api/ai/wizard', data);
+    return res.data;
+  },
+
+  generate: async (prompt: string, module = 'system_design') => {
+    const res = await apiClient.post<any>('/api/ai/generate', { prompt, module });
+    return res.data;
+  },
+
+  simulationReport: async (data: any) => {
+    const res = await apiClient.post<{ report: string }>('/api/ai/simulation-report', data);
+    return res.data;
+  },
+
+  chaosExplain: async (params: {
+    chaosType: string;
+    nodeName: string;
+    nodeType: string;
+    architectureContext: {
+      totalNodes: number;
+      connectedNodes: string[];
+    };
+  }) => {
+    const res = await apiClient.post<{ explanation: string }>('/api/ai/chaos-explain', params);
+    return res.data;
+  },
+};
+
+// ── Feedback ────────────────────────────────────────────────────────────────
+export const feedbackApi = {
+  submit: async (data: {
+    type: string;
+    title: string;
+    description: string;
+    email?: string;
+    priority: string;
+    page: string;
+    userAgent: string;
+    timestamp: string;
+  }) => {
+    const res = await apiClient.post<any>('/api/feedback', data);
+    return res.data;
+  },
+};
+
+export default apiClient;

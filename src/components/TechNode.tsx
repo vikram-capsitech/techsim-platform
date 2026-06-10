@@ -104,6 +104,16 @@ export const TechNode = memo(function TechNode({
   const showSimBar = isRunning && simState;
   const statusGlow = simState?.statusGlow && simState.statusGlow !== 'none' ? simState.statusGlow : null;
 
+  const chaosBadge = (() => {
+    if (!simState || !isRunning) return null;
+    if (simState.status === 'down') return { text: '■ DOWN', color: '#EF4444' };
+    if (simState.memoryUsage > 85) return { text: 'MEM LEAK', color: '#F97316' };
+    if (simState.cpuUsage > 90) return { text: 'CPU SPIKE', color: '#EF4444' };
+    if (simState.status === 'overloaded') return { text: 'OVERLOADED', color: '#EF4444' };
+    if (simState.status === 'degraded') return { text: 'DEGRADED', color: '#F59E0B' };
+    return null;
+  })();
+
   const deleteNode = (e: React.MouseEvent) => {
     e.stopPropagation();
     setNodes(ns => ns.filter(n => n.id !== id));
@@ -212,15 +222,20 @@ export const TechNode = memo(function TechNode({
         style={{
           minWidth: 160,
           minHeight: 70,
+          position: 'relative',
           background: isDown
-            ? 'rgba(13,13,16,0.6)'
+            ? 'rgba(13,13,16,0.7)'
             : selected
             ? 'var(--card-hover)'
             : 'var(--card-bg)',
           borderRadius: 8,
-          border: `1px solid ${selected ? color + '80' : isOverloaded ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
-          borderTop: `2px solid ${isDown ? '#64748B' : color}`,
-          boxShadow: selected
+          border: isDown
+            ? '1px solid rgba(239,68,68,0.5)'
+            : `1px solid ${selected ? color + '80' : isOverloaded ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
+          borderTop: `2px solid ${isDown ? '#EF4444' : color}`,
+          boxShadow: isDown
+            ? '0 0 0 2px rgba(239,68,68,0.2), 0 0 20px rgba(239,68,68,0.1)'
+            : selected
             ? `0 0 0 1px ${color}30, 0 4px 20px rgba(0,0,0,0.6)`
             : statusGlow
             ? statusGlow
@@ -228,15 +243,28 @@ export const TechNode = memo(function TechNode({
             ? '0 0 14px rgba(239,68,68,0.35)'
             : '0 2px 8px rgba(0,0,0,0.4)',
           overflow: 'hidden',
-          transition: 'all 0.15s ease',
-          opacity: isDown ? 0.5 : 1,
-          animation: isOverloaded
+          transition: 'all 0.3s ease',
+          opacity: isDown ? 0.45 : 1,
+          filter: isDown ? 'grayscale(80%)' : 'none',
+          animation: isDown
+            ? undefined
+            : isOverloaded
             ? 'node-breathe 1.2s ease-in-out infinite'
             : isRunning
             ? 'node-breathe 3s ease-in-out infinite'
             : undefined,
         }}
       >
+        {/* Diagonal stripe overlay — only when DOWN */}
+        {isDown && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(239,68,68,0.04) 8px, rgba(239,68,68,0.04) 16px)',
+            borderRadius: 'inherit',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }} />
+        )}
         <div style={{ padding: '7px 8px 6px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
 
           {/* Row 1: category badge + status dot */}
@@ -333,6 +361,35 @@ export const TechNode = memo(function TechNode({
             )}
           </div>
 
+          {/* Restart button — only visible when node is DOWN */}
+          {isRunning && isDown && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('node-heal', { detail: { nodeId: id } }));
+              }}
+              className="nodrag"
+              style={{
+                marginTop: 6,
+                width: '100%',
+                background: '#10B98122',
+                border: '1px solid #10B98144',
+                color: '#10B981',
+                borderRadius: 6,
+                padding: '4px 8px',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              ↺ Restart Node
+            </button>
+          )}
+
           {/* Row 3: simulation metrics */}
           {showSimBar && (
             <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -358,7 +415,41 @@ export const TechNode = memo(function TechNode({
             </div>
           )}
         </div>
+
+        {/* NODE OFFLINE footer strip — inside card so it can't be clipped by React Flow */}
+        {isDown && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            height: 18,
+            background: 'rgba(239,68,68,0.14)',
+            borderTop: '1px solid rgba(239,68,68,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 5, zIndex: 3, pointerEvents: 'none',
+          }}>
+            <span style={{
+              color: '#EF4444', fontSize: 8, fontWeight: 800,
+              fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.12em',
+            }}>◉ NODE OFFLINE</span>
+          </div>
+        )}
       </div>
+
+      {/* Chaos status badge — outside the overflow:hidden card so it's not clipped */}
+      {chaosBadge && (
+        <div style={{
+          position: 'absolute', top: -8, right: 8,
+          background: chaosBadge.color,
+          color: 'white', fontSize: 9, fontWeight: 700,
+          padding: '2px 6px', borderRadius: 4,
+          letterSpacing: '0.05em',
+          boxShadow: `0 0 8px ${chaosBadge.color}88`,
+          animation: 'pulse-glow 1s ease-in-out infinite',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}>
+          {chaosBadge.text}
+        </div>
+      )}
     </div>
   );
 });

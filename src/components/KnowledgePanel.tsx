@@ -46,7 +46,7 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
           top: 0, right: 0,
           width: 480,
           height: '100vh',
-          background: '#0D0D10',
+          background: 'var(--bg-primary)',
           borderLeft: '1px solid rgba(124,58,237,0.3)',
           boxShadow: '-8px 0 48px rgba(0,0,0,0.7)',
           zIndex: 91,
@@ -60,7 +60,7 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
         {/* Header */}
         <div style={{
           padding: '18px 20px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--border-dim)',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -70,7 +70,7 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
                 <span style={{
                   fontSize: 18,
                   fontWeight: 700,
-                  color: '#E2E8F0',
+                  color: 'var(--text-primary)',
                   letterSpacing: '-0.02em',
                 }}>
                   {info?.name ?? label}
@@ -80,7 +80,7 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
                 <p style={{
                   margin: 0,
                   fontSize: 12.5,
-                  color: '#64748B',
+                  color: 'var(--text-secondary)',
                   fontFamily: "'IBM Plex Mono', monospace",
                   lineHeight: 1.4,
                 }}>
@@ -92,15 +92,15 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
               onClick={onClose}
               style={{
                 width: 28, height: 28, borderRadius: 7,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: '#64748B', cursor: 'pointer',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 16, flexShrink: 0, marginTop: 2,
                 transition: 'all 0.12s',
               }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#EF4444'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#64748B'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
             >
               ×
             </button>
@@ -117,7 +117,7 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
                   borderRadius: 6,
                   border: 'none',
                   background: tab === t.id ? 'rgba(124,58,237,0.22)' : 'transparent',
-                  color: tab === t.id ? '#A78BFA' : '#64748B',
+                  color: tab === t.id ? '#A78BFA' : 'var(--text-secondary)',
                   fontSize: 11.5,
                   fontFamily: "'IBM Plex Mono', monospace",
                   fontWeight: tab === t.id ? 600 : 400,
@@ -125,8 +125,8 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
                   transition: 'all 0.12s',
                   outline: tab === t.id ? '1px solid rgba(124,58,237,0.4)' : 'none',
                 }}
-                onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = '#94A3B8'; }}
-                onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = '#64748B'; }}
+                onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = 'var(--text-primary)'; }}
+                onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = 'var(--text-secondary)'; }}
               >
                 {t.label}
               </button>
@@ -180,7 +180,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 function Prose({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65, color: '#94A3B8' }}>
+    <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65, color: 'var(--text-secondary)' }}>
       {children}
     </p>
   );
@@ -192,7 +192,7 @@ function BulletList({ items, color = '#A78BFA' }: { items: string[]; color?: str
       {items.map((item, i) => (
         <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13 }}>
           <span style={{ color, flexShrink: 0, marginTop: 3, fontSize: 8 }}>◆</span>
-          <span style={{ color: '#94A3B8', lineHeight: 1.55 }}>{item}</span>
+          <span style={{ color: 'var(--text-secondary)', lineHeight: 1.55 }}>{item}</span>
         </li>
       ))}
     </ul>
@@ -226,7 +226,7 @@ function OverviewTab({ info, card }: TabProps) {
             {info.algorithms.map((alg, i) => (
               <div key={i} style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 8, padding: '9px 12px' }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: '#C4B5FD', marginBottom: 3 }}>{alg.name}</div>
-                <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>{alg.desc}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{alg.desc}</div>
               </div>
             ))}
           </div>
@@ -262,7 +262,7 @@ function MistakesTab({ info, card }: TabProps) {
         {mistakes.map((m, i) => (
           <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: '9px 12px' }}>
             <span style={{ color: '#EF4444', flexShrink: 0, fontSize: 14, lineHeight: 1.4 }}>⚠</span>
-            <span style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55 }}>{m}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{m}</span>
           </div>
         ))}
       </div>
@@ -279,7 +279,7 @@ function RealWorldTab({ card, info }: TabProps) {
           {card.realWorldUsage.map((r, i) => (
             <div key={i} style={{ background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.15)', borderRadius: 9, padding: '11px 14px' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#06B6D4', marginBottom: 4, fontFamily: "'IBM Plex Mono', monospace" }}>{r.company}</div>
-              <div style={{ fontSize: 13, color: '#94A3B8', lineHeight: 1.55 }}>{r.useCase}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{r.useCase}</div>
             </div>
           ))}
         </div>
@@ -295,7 +295,7 @@ function RealWorldTab({ card, info }: TabProps) {
         {examples.map((ex, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.12)', borderRadius: 7, padding: '7px 10px' }}>
             <span style={{ color: '#06B6D4', flexShrink: 0, fontSize: 11, marginTop: 2 }}>▸</span>
-            <span style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.5 }}>{ex}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{ex}</span>
           </div>
         ))}
       </div>
@@ -324,13 +324,13 @@ function MetricsTab({ card, info }: TabProps) {
       <SectionHeading>Capacity & cost estimations</SectionHeading>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map(row => (
-          <div key={row.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '11px 14px' }}>
+          <div key={row.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '11px 14px' }}>
             <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: row.color, marginBottom: 5 }}>{row.label}</div>
-            <div style={{ fontSize: 13, color: '#CBD5E1', lineHeight: 1.5 }}>{row.value}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>{row.value}</div>
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 20, padding: '10px 14px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 8, fontSize: 11.5, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.5 }}>
+      <div style={{ marginTop: 20, padding: '10px 14px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 8, fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.5 }}>
         Numbers are rough estimates. Always benchmark in your specific environment and workload.
       </div>
     </div>
@@ -342,7 +342,7 @@ function InterviewTab({ card }: { card: KnowledgeCard | undefined }) {
     return (
       <div style={{ textAlign: 'center' as const, paddingTop: 48 }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🎯</div>
-        <div style={{ fontSize: 13, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace" }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace" }}>
           Interview tips available once content is loaded.
         </div>
       </div>
@@ -352,7 +352,7 @@ function InterviewTab({ card }: { card: KnowledgeCard | undefined }) {
     <div>
       <SectionHeading>Interview talking points</SectionHeading>
       <div style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 10, padding: '14px 16px' }}>
-        <div style={{ fontSize: 13.5, color: '#94A3B8', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
+        <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
           {card.interviewTips}
         </div>
       </div>
@@ -403,7 +403,7 @@ function ReferencesTab({ nodeTypeId }: { nodeTypeId: string }) {
               style={{
                 padding: '4px 10px',
                 borderRadius: 6,
-                border: `1px solid ${active ? 'rgba(124,58,237,0.5)' : 'rgba(255,255,255,0.07)'}`,
+                border: `1px solid ${active ? 'rgba(124,58,237,0.5)' : 'var(--border)'}`,
                 background: active ? 'rgba(124,58,237,0.18)' : 'transparent',
                 color: active ? '#A78BFA' : '#64748B',
                 fontSize: 11,
@@ -428,11 +428,11 @@ function ReferencesTab({ nodeTypeId }: { nodeTypeId: string }) {
       ) : (
         <div style={{
           padding: '16px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.07)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
           borderRadius: 8,
           fontSize: 12.5,
-          color: '#475569',
+          color: 'var(--text-secondary)',
           fontFamily: "'IBM Plex Mono', monospace",
           textAlign: 'center',
         }}>
@@ -444,7 +444,7 @@ function ReferencesTab({ nodeTypeId }: { nodeTypeId: string }) {
       <div style={{
         marginTop: 24,
         paddingTop: 18,
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: '1px solid var(--border-dim)',
       }}>
         <div style={{
           fontSize: 10.5,
@@ -452,7 +452,7 @@ function ReferencesTab({ nodeTypeId }: { nodeTypeId: string }) {
           fontWeight: 700,
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
-          color: '#475569',
+          color: 'var(--text-secondary)',
           marginBottom: 10,
         }}>
           Essential System Design Resources
@@ -478,8 +478,8 @@ function RefCard({ ref, compact = false }: { ref: Reference; compact?: boolean }
         alignItems: compact ? 'center' : 'flex-start',
         gap: 10,
         padding: compact ? '8px 10px' : '10px 12px',
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
         borderRadius: 8,
         textDecoration: 'none',
         transition: 'all 0.12s',
@@ -490,8 +490,8 @@ function RefCard({ ref, compact = false }: { ref: Reference; compact?: boolean }
         (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(124,58,237,0.25)';
       }}
       onMouseLeave={e => {
-        (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.03)';
-        (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.07)';
+        (e.currentTarget as HTMLAnchorElement).style.background = 'var(--bg-card)';
+        (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border)';
       }}
     >
       <span style={{ fontSize: compact ? 14 : 18, flexShrink: 0, lineHeight: 1 }}>
@@ -502,7 +502,7 @@ function RefCard({ ref, compact = false }: { ref: Reference; compact?: boolean }
         <div style={{
           fontSize: compact ? 12 : 13,
           fontWeight: 500,
-          color: '#C4B5FD',
+          color: 'var(--accent-bright)',
           lineHeight: 1.35,
           marginBottom: compact ? 0 : 4,
           overflow: 'hidden',
@@ -515,7 +515,7 @@ function RefCard({ ref, compact = false }: { ref: Reference; compact?: boolean }
         {!compact && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {ref.author && (
-              <span style={{ fontSize: 11, color: '#475569', fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace" }}>
                 {ref.author}
               </span>
             )}
@@ -528,7 +528,7 @@ function RefCard({ ref, compact = false }: { ref: Reference; compact?: boolean }
               {ref.difficulty}
             </span>
             {ref.duration && (
-              <span style={{ fontSize: 10, color: '#475569', fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace" }}>
                 ⏱ {ref.duration}
               </span>
             )}
@@ -543,24 +543,37 @@ function RefCard({ ref, compact = false }: { ref: Reference; compact?: boolean }
         )}
       </div>
 
-      <span style={{ color: '#334155', fontSize: 13, flexShrink: 0 }}>→</span>
+      <span style={{ color: 'var(--text-secondary)', fontSize: 13, flexShrink: 0 }}>→</span>
     </a>
   );
 }
 
 function NoKnowledge({ label, nodeTypeId }: { label: string; nodeTypeId: string }) {
+  // Derive a readable category from the node type id
+  const category = nodeTypeId.includes('db') || nodeTypeId.includes('sql') || nodeTypeId.includes('mongo') || nodeTypeId.includes('redis') || nodeTypeId.includes('cache')
+    ? 'data storage'
+    : nodeTypeId.includes('queue') || nodeTypeId.includes('kafka') || nodeTypeId.includes('rabbit') || nodeTypeId.includes('sqs')
+    ? 'messaging'
+    : nodeTypeId.includes('balancer') || nodeTypeId.includes('gateway') || nodeTypeId.includes('cdn') || nodeTypeId.includes('waf')
+    ? 'network'
+    : nodeTypeId.includes('service') || nodeTypeId.includes('worker') || nodeTypeId.includes('lambda') || nodeTypeId.includes('server')
+    ? 'compute'
+    : nodeTypeId.includes('monitor') || nodeTypeId.includes('grafana') || nodeTypeId.includes('prometheus')
+    ? 'monitoring'
+    : 'infrastructure';
+
   return (
-    <div style={{ textAlign: 'center', paddingTop: 60 }}>
-      <div style={{ fontSize: 36, marginBottom: 14 }}>📖</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: '#E2E8F0', marginBottom: 8 }}>
+    <div style={{ padding: '2rem', textAlign: 'center' }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>📖</div>
+      <h3 style={{ color: 'var(--text-primary)', fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>
         {label}
-      </div>
-      <div style={{ fontSize: 12.5, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace" }}>
-        No deep-dive content yet for <code style={{ color: '#A78BFA' }}>{nodeTypeId}</code>
-      </div>
-      <div style={{ marginTop: 8, fontSize: 12, color: '#475569' }}>
-        Coming soon in a future update.
-      </div>
+      </h3>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, margin: '0 0 8px' }}>
+        This component is a <strong style={{ color: 'var(--text-primary)' }}>{category}</strong> layer node.
+      </p>
+      <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontFamily: "'IBM Plex Mono', monospace" }}>
+        Detailed knowledge card coming in the next update.
+      </p>
     </div>
   );
 }

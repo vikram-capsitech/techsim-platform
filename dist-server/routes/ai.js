@@ -495,4 +495,33 @@ Difficulty: ${scenario.difficulty}
         }
     }
 });
+// POST /api/ai/chaos-explain — explain chaos engineering event live incident
+router.post('/chaos-explain', auth_1.authMiddleware, async (req, res, next) => {
+    try {
+        const { chaosType, nodeName, nodeType, architectureContext } = req.body;
+        const prompt = `
+    A chaos engineering event just happened in a user's system architecture.
+
+    Chaos Type: ${chaosType}
+    Affected Node: ${nodeName} (type: ${nodeType})
+    System has ${architectureContext?.totalNodes ?? 0} total components
+    Nodes connected to affected node: ${architectureContext?.connectedNodes?.join(', ') || 'None'}
+
+    In 3-4 sentences, explain:
+    1. What is happening RIGHT NOW in this specific node (be specific about ${nodeType})
+    2. Which connected nodes are being affected and how
+    3. What the user should watch for in the metrics
+
+    Be conversational, specific to THIS architecture. Start with 'Your ${nodeName} is...'
+    No markdown, no headers, plain conversational text.
+    `;
+        const customGroqKey = req.headers['x-groq-api-key'];
+        const customGeminiKey = req.headers['x-gemini-api-key'];
+        const response = await (0, ai_1.callAI)(prompt, 'You are a systems reliability engineer explaining a live incident. Be specific, concise, educational.', 1000, customGroqKey, customGeminiKey);
+        res.json({ explanation: response });
+    }
+    catch (error) {
+        next(error);
+    }
+});
 exports.default = router;

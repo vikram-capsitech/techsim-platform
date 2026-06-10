@@ -23,6 +23,7 @@ export interface EdgeState {
   bandwidth: number;
   latency: number;
   isPartitioned: boolean;
+  isBlocked: boolean;
   packets: Packet[];
 }
 
@@ -101,6 +102,7 @@ export class SimulationEngine {
   private metrics: SimMetrics;
   private theme: SimulationTheme;
   private chaosLog: ChaosEvent[];
+  private downNodes: Set<string>;
 
   constructor(nodes: Node[] = [], edges: Edge[] = [], theme: SimulationTheme = 'dark') {
     this.nodes = new Map();
@@ -123,6 +125,7 @@ export class SimulationEngine {
     this.metrics = emptyMetrics();
     this.theme = theme;
     this.chaosLog = [];
+    this.downNodes = new Set();
     this.setTopology(nodes, edges);
   }
 
@@ -171,6 +174,7 @@ export class SimulationEngine {
         bandwidth: previous?.bandwidth ?? 0,
         latency: previous?.latency ?? latencyForProtocol(data?.protocol),
         isPartitioned: previous?.isPartitioned ?? false,
+        isBlocked: previous?.isBlocked ?? false,
         packets: previous?.packets ?? [],
       });
     }
@@ -204,9 +208,11 @@ export class SimulationEngine {
       node.cpuUsage = 0;
       node.memoryUsage = 0;
     }
+    this.downNodes.clear();
     for (const edge of this.edges.values()) {
       edge.bandwidth = 0;
       edge.packets = [];
+      edge.isBlocked = false;
     }
     this.metrics = this.calculateMetrics();
     this.emit();
@@ -222,25 +228,90 @@ export class SimulationEngine {
   crashNode(nodeId: string): void {
     const node = this.nodes.get(nodeId);
     if (!node) return;
-    this.logChaosEvent({
-      type: 'Node Crash',
-      targetId: nodeId,
-      impactDescription: 'Node went offline, traffic redistributed to healthy nodes',
-    });
+
+    console.log('[CHAOS] Crashing node:', nodeId);
+    this.downNodes.add(nodeId);
+    console.log('[CHAOS] downNodes set:', Array.from(this.downNodes));
+
     node.status = 'down';
     node.currentLoad = 0;
     node.queueDepth = 0;
     node.errorRate = 1;
     node.cpuUsage = 0;
     node.memoryUsage = 0;
+
+    // Only block OUTGOING edges — crashed node can't forward anything downstream
+    // Incoming edges stay active: clients keep sending requests, they arrive and are dropped
     for (const edge of this.edges.values()) {
-      if (edge.source === nodeId || edge.target === nodeId) {
+      if (edge.source === nodeId) {
+        edge.isBlocked = true;
+        edge.packets = [];
         edge.bandwidth = 0;
-        edge.packets = edge.packets.filter((packet) => packet.progress < 0.92);
+      } else if (edge.target === nodeId) {
+        edge.packets = [];
+        edge.bandwidth = 0;
       }
     }
+
+    // BFS cascade: every node reachable downstream degrades.
+    // Also immediately zero their outgoing edge bandwidth so packet dots stop instantly —
+    // smooth() decay takes ~8s otherwise which looks broken to the user.
+    const downstream = this.getDownstreamNodes(nodeId);
+    for (const downId of downstream) {
+      const downNode = this.nodes.get(downId);
+      if (downNode && downNode.status !== 'down') {
+        downNode.errorRate = Math.min(1, downNode.errorRate + 0.4);
+        downNode.status = 'degraded';
+      }
+      // Immediately drain outgoing edge bandwidth — prevents ghost packets during smooth() decay
+      for (const edge of this.edges.values()) {
+        if (edge.source === downId && !edge.isBlocked) {
+          edge.bandwidth = 0;
+          edge.packets = [];
+        }
+      }
+    }
+
+    this.logChaosEvent({
+      type: 'Node Crash',
+      targetId: nodeId,
+      impactDescription: `Node offline. ${downstream.length} downstream nodes degraded.`,
+    });
+
     this.metrics = this.calculateMetrics();
     this.emit();
+  }
+
+  private getDownstreamNodes(nodeId: string): string[] {
+    const visited = new Set<string>();
+    const queue = [nodeId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const edge of this.edges.values()) {
+        if (edge.source === current && !visited.has(edge.target)) {
+          visited.add(edge.target);
+          queue.push(edge.target);
+        }
+      }
+    }
+    visited.delete(nodeId);
+    return [...visited];
+  }
+
+  private getUpstreamNodes(nodeId: string): string[] {
+    const visited = new Set<string>();
+    const queue = [nodeId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const edge of this.edges.values()) {
+        if (edge.target === current && !visited.has(edge.source)) {
+          visited.add(edge.source);
+          queue.push(edge.source);
+        }
+      }
+    }
+    visited.delete(nodeId);
+    return [...visited];
   }
 
   spikeLatency(edgeId: string, ms: number): void {
@@ -315,19 +386,78 @@ export class SimulationEngine {
     this.emit();
   }
 
+  injectMemoryLeak(nodeId: string): void {
+    const node = this.nodes.get(nodeId);
+    if (!node || node.status === 'down') return;
+    this.logChaosEvent({
+      type: 'Memory Leak',
+      targetId: nodeId,
+      impactDescription: 'Memory climbing — will crash if not healed in time',
+    });
+
+    let memLevel = node.memoryUsage;
+    const leakInterval = window.setInterval(() => {
+      const live = this.nodes.get(nodeId);
+      if (!live || live.status === 'down') { window.clearInterval(leakInterval); return; }
+
+      memLevel = Math.min(99, memLevel + 4);
+      live.memoryUsage = memLevel;
+      live.latency = live.latency * 1.05;
+
+      if (memLevel >= 85 && live.status === 'healthy') live.status = 'degraded';
+      if (memLevel >= 95) {
+        live.status = 'overloaded';
+        window.clearInterval(leakInterval);
+        window.setTimeout(() => this.crashNode(nodeId), 3000);
+      }
+
+      this.metrics = this.calculateMetrics();
+      this.emit();
+    }, 1000);
+  }
+
   healNode(nodeId: string): void {
     const node = this.nodes.get(nodeId);
     if (!node) return;
-    const crashEvent = [...this.chaosLog].reverse().find((event) => event.targetId === nodeId && !event.recovered);
-    if (crashEvent) {
-      crashEvent.recovered = true;
-      crashEvent.recoveryTime = this.elapsedSeconds() - crashEvent.timeSeconds;
-    }
+
+    this.downNodes.delete(nodeId);
     node.status = 'healthy';
     node.errorRate = 0;
     node.queueDepth = 0;
     node.cpuUsage = 20;
     node.memoryUsage = 18;
+
+    // Unblock all edges touching this node — but only if the other endpoint is also up
+    for (const edge of this.edges.values()) {
+      if (edge.source === nodeId || edge.target === nodeId) {
+        const otherId = edge.source === nodeId ? edge.target : edge.source;
+        if (!this.downNodes.has(otherId)) {
+          edge.isBlocked = false;
+        }
+      }
+    }
+
+    // BFS: recover downstream nodes that were degraded by this crash,
+    // but only if they no longer have any down node upstream
+    const downstream = this.getDownstreamNodes(nodeId);
+    for (const downId of downstream) {
+      const upstream = this.getUpstreamNodes(downId);
+      const stillBlocked = upstream.some(id => this.downNodes.has(id));
+      if (!stillBlocked) {
+        const downNode = this.nodes.get(downId);
+        if (downNode && downNode.status === 'degraded') {
+          downNode.status = 'healthy';
+          downNode.errorRate = Math.max(0, downNode.errorRate - 0.4);
+        }
+      }
+    }
+
+    const crashEvent = [...this.chaosLog].reverse().find(e => e.targetId === nodeId && !e.recovered);
+    if (crashEvent) {
+      crashEvent.recovered = true;
+      crashEvent.recoveryTime = this.elapsedSeconds() - crashEvent.timeSeconds;
+    }
+
     this.metrics = this.calculateMetrics();
     this.emit();
   }
@@ -440,7 +570,7 @@ export class SimulationEngine {
 
       const droppedRatio = node.status === 'overloaded' ? clamp((node.currentLoad - node.capacity * 1.5) / node.capacity, 0, 0.45) : 0;
       const deliverable = Math.max(0, handledLoad * (1 - node.errorRate * 0.35 - droppedRatio));
-      const outgoing = this.outgoingEdges(nodeId).filter((edge) => !edge.isPartitioned);
+      const outgoing = this.outgoingEdges(nodeId).filter((edge) => !edge.isPartitioned && !edge.isBlocked);
       if (outgoing.length === 0) continue;
 
       const totalWeight = outgoing.reduce((sum, edge) => sum + this.edgeWeight(edge, nodeId), 0);
@@ -456,13 +586,16 @@ export class SimulationEngine {
         const cacheReduction = this.cacheReduction(nodeId, edge.target);
         const load = deliverable * share * backpressure * cacheReduction;
         edge.bandwidth = smooth(edge.bandwidth, load, dt, 8);
-        edgeLoads.set(edge.id, load);
-        incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + load);
+        if (load > 0) {
+          edgeLoads.set(edge.id, load);
+          incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + load);
+        }
       }
     }
 
     for (const edge of this.edges.values()) {
-      if (!edgeLoads.has(edge.id)) edge.bandwidth = smooth(edge.bandwidth, 0, dt, 8);
+      // Fast drain (0.5s) for edges with no active load — prevents ghost packets after upstream crash
+      if (!edgeLoads.has(edge.id)) edge.bandwidth = smooth(edge.bandwidth, 0, dt, 0.5);
       this.advancePackets(edge);
     }
   }
@@ -513,10 +646,16 @@ export class SimulationEngine {
   private advancePackets(edge: EdgeState): void {
     const target = this.nodes.get(edge.target);
     const source = this.nodes.get(edge.source);
-    if (edge.isPartitioned) {
+
+    // Bail if source is down (can't send) or edge is explicitly blocked/partitioned
+    // NOTE: target being down is intentionally NOT a bail — clients keep sending requests
+    // to a crashed node; those packets arrive and are dropped (real architecture behavior)
+    if (edge.isPartitioned || edge.isBlocked || source?.status === 'down') {
       edge.packets = [];
       return;
     }
+
+    const targetIsDown = target?.status === 'down';
 
     const maxPackets = this.maxPacketsForTraffic();
     if (maxPackets === 0) {
@@ -524,15 +663,15 @@ export class SimulationEngine {
       return;
     }
 
+    // For edges heading into a crashed target: force a minimal bandwidth so consumePacketSpawn
+    // will still spawn error packets (showing client requests hitting the downed node)
+    if (targetIsDown && edge.bandwidth < 1) edge.bandwidth = 1;
+
     const spawnCount = this.consumePacketSpawn(edge, maxPackets);
     for (let index = 0; index < spawnCount && edge.packets.length < maxPackets; index += 1) {
-      const type: Packet['type'] = source?.status === 'overloaded'
-        ? 'error'
-        : source?.status === 'down'
-        ? 'dropped'
-        : 'normal';
+      // Error-type packets when target is down — visually shows requests being rejected
+      const type: Packet['type'] = (source?.status === 'overloaded' || targetIsDown) ? 'error' : 'normal';
       this.totalPackets += 1;
-      if (type === 'dropped') this.droppedPackets += 1;
       edge.packets.push({
         id: `pkt_${this.tickCount}_${edge.id}_${index}`,
         progress: 0,
@@ -547,10 +686,7 @@ export class SimulationEngine {
         ...packet,
         progress: packet.progress + packet.speed * this.speedMultiplier,
       }))
-      .filter((packet) => {
-        if (packet.progress < 1) return true;
-        return target?.status === 'down' && packet.progress < 1.08;
-      })
+      .filter((packet) => packet.progress < 1)  // Drop at destination (crashed or healthy)
       .slice(-maxPackets);
   }
 
@@ -558,6 +694,8 @@ export class SimulationEngine {
     if (this.speedMultiplier <= 0 || this.trafficMultiplier <= 0 || edge.packets.length >= maxPackets) {
       return 0;
     }
+    // Don't spawn if no real load is flowing — prevents ghost packets on starved edges
+    if (edge.bandwidth < 1) return 0;
 
     const spawnEveryTicks = Math.max(1, Math.round(PACKET_SPAWN_TICKS / this.speedMultiplier));
     return this.tickCount % spawnEveryTicks === 0 ? 1 : 0;

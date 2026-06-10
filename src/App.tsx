@@ -35,7 +35,7 @@ import { RequirementWizard } from './components/wizard/RequirementWizard';
 import { ValidationGate } from './components/ValidationGate';
 
 import { toPng } from 'html-to-image';
-import { diagramApi } from './api/client';
+import { diagramApi, aiApi } from './api/client';
 import type { ValidationIssue } from './types';
 import { useSimulation } from './simulation/useSimulation';
 import { useTheme } from './context/ThemeContext';
@@ -94,26 +94,26 @@ function CanvasPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const diagramId = searchParams.get('id');
 
-  const [nodeCount,       setNodeCount]       = useState(0);
-  const [selectedNode,    setSelectedNode]    = useState<Node | null>(null);
-  const [selectedEdgeId,  setSelectedEdgeId]  = useState<string | null>(null);
-  const [issues,          setIssues]          = useState<ValidationIssue[]>([]);
-  const [toasts,          setToasts]          = useState<Toast[]>([]);
-  const [topology,        setTopology]        = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] });
-  const [speed,           setSpeed]           = useState(1);
-  const [traffic,         setTraffic]         = useState(1);
-  const [showIssues,      setShowIssues]      = useState(false);
-  const [showPresets,     setShowPresets]     = useState(false);
-  const [reportData,      setReportData]      = useState<SimulationReportData | null>(null);
-  const [showWizard,      setShowWizard]      = useState(() => !localStorage.getItem('techsim_wizard_seen'));
-  const [showGate,        setShowGate]        = useState(false);
-  const [showScore,       setShowScore]       = useState(false);
-  const [chaosExplainId,  setChaosExplainId]  = useState<string | null>(null);
+  const [nodeCount, setNodeCount] = useState(0);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [issues, setIssues] = useState<ValidationIssue[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [topology, setTopology] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] });
+  const [speed, setSpeed] = useState(1);
+  const [traffic, setTraffic] = useState(1);
+  const [showIssues, setShowIssues] = useState(false);
+  const [showPresets, setShowPresets] = useState(false);
+  const [reportData, setReportData] = useState<SimulationReportData | null>(null);
+  const [showWizard, setShowWizard] = useState(() => !localStorage.getItem('techsim_wizard_seen'));
+  const [showGate, setShowGate] = useState(false);
+  const [showScore, setShowScore] = useState(false);
+  const [chaosExplainId, setChaosExplainId] = useState<string | null>(null);
   const [scenarioGenerating, setScenarioGenerating] = useState(false);
-  const [scenarioError,      setScenarioError]      = useState<string | null>(null);
+  const [scenarioError, setScenarioError] = useState<string | null>(null);
   const canvasRef = useRef<CanvasHandle | null>(null);
-  const simStartRef   = useRef<number | null>(null);
-  const peakRPSRef    = useRef(0);
+  const simStartRef = useRef<number | null>(null);
+  const peakRPSRef = useRef(0);
   const { metrics, isRunning, start, stop, injectChaos, nodeStates, edgeStates, setSpeed: engineSetSpeed, setTraffic: engineSetTraffic, getChaosLog, resetChaosLog } = useSimulation(topology.nodes, topology.edges, resolvedTheme);
 
   const lastSavedRef = useRef<string>('');
@@ -171,19 +171,19 @@ function CanvasPage() {
     return () => clearInterval(interval);
   }, [diagramId]);
 
-  const handleCountChange  = useCallback((n: number) => setNodeCount(n), []);
-  const handleNodeSelect   = useCallback((node: Node | null) => setSelectedNode(node), []);
-  const handleEdgeSelect   = useCallback((edgeId: string | null) => setSelectedEdgeId(edgeId), []);
+  const handleCountChange = useCallback((n: number) => setNodeCount(n), []);
+  const handleNodeSelect = useCallback((node: Node | null) => setSelectedNode(node), []);
+  const handleEdgeSelect = useCallback((edgeId: string | null) => setSelectedEdgeId(edgeId), []);
   const handleIssuesChange = useCallback((next: ValidationIssue[]) => setIssues(next), []);
-  const handleNewIssues    = useCallback((fresh: ValidationIssue[]) => {
+  const handleNewIssues = useCallback((fresh: ValidationIssue[]) => {
     setToasts(prev => [
       ...prev,
       ...fresh.map(issue => ({ id: `toast_${Date.now()}_${Math.random()}`, issue })),
     ]);
   }, []);
-  const dismissToast    = useCallback((id: string) => setToasts(p => p.filter(t => t.id !== id)), []);
+  const dismissToast = useCallback((id: string) => setToasts(p => p.filter(t => t.id !== id)), []);
   const handleHighlight = useCallback((issue: ValidationIssue) => canvasRef.current?.highlightIssue(issue), []);
-  const handleValidate  = useCallback(() => canvasRef.current?.runValidation(), []);
+  const handleValidate = useCallback(() => canvasRef.current?.runValidation(), []);
   const handleTopologyChange = useCallback((nodes: Node[], edges: Edge[]) => {
     setTopology({ nodes, edges });
     setNodeCount(nodes.length);
@@ -249,6 +249,24 @@ function CanvasPage() {
   const activeNodeCount = topology.nodes.filter((node) => nodeStates.get(node.id)?.status !== 'down').length;
   const selectedNodeId = selectedNode?.id ?? null;
   const selectedNodeTypeId = selectedNode ? (selectedNode.data as { nodeTypeId?: string }).nodeTypeId ?? null : null;
+  const selectedNodeName = selectedNode ? String((selectedNode.data as { label?: string }).label ?? selectedNodeId) : null;
+  const selectedNodeSimState = selectedNodeId ? nodeStates.get(selectedNodeId) ?? null : null;
+
+  // Heal node via custom event dispatched from inside TechNode
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId } = (e as CustomEvent<{ nodeId: string }>).detail;
+      injectChaos('heal', nodeId);
+    };
+    window.addEventListener('node-heal', handler);
+    return () => window.removeEventListener('node-heal', handler);
+  }, [injectChaos]);
+
+  // ChaosArea now handles validation and converts scenario IDs → engine methods before calling here.
+  // This just passes engine method calls straight through to the simulation engine.
+  const handleChaosInject = useCallback((chaosType: string, nodeId: string) => {
+    injectChaos(chaosType, nodeId);
+  }, [injectChaos]);
 
   const proceedSimulation = useCallback(() => {
     setShowGate(false);
@@ -323,10 +341,10 @@ function CanvasPage() {
       chaosId === 'node-crash' || chaosId === 'dc-failure' || chaosId === 'disk-failure'
         ? 'crash'
         : chaosId === 'latency-spike' || chaosId === 'slowdown' || chaosId === 'gc-pause'
-        ? 'latency'
-        : chaosId === 'net-partition' || chaosId === 'packet-loss'
-        ? 'partition'
-        : 'crash';
+          ? 'latency'
+          : chaosId === 'net-partition' || chaosId === 'packet-loss'
+            ? 'partition'
+            : 'crash';
     injectChaos(method, nodeId);
     setTimeout(() => setChaosExplainId(chaosId), 3000);
   }, [injectChaos]);
@@ -335,24 +353,7 @@ function CanvasPage() {
     setScenarioGenerating(true);
     setScenarioError(null);
     try {
-      const token = localStorage.getItem('techsim_token');
-      const groqKey = localStorage.getItem('groq_api_key') ?? '';
-      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
-      const res = await fetch('http://localhost:5000/api/ai/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
-          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
-        },
-        body: JSON.stringify({ prompt, module: 'system_design' }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? `Server error ${res.status}`);
-      }
-      const raw = await res.json();
+      const raw = await aiApi.generate(prompt, 'system_design');
       const diagram = transformDiagram(raw);
       canvasRef.current?.loadPreset(diagram.nodes, diagram.edges);
     } catch (err) {
@@ -399,8 +400,10 @@ function CanvasPage() {
           onIssuesClick={() => setShowIssues(v => !v)}
           selectedNodeId={selectedNodeId}
           selectedNodeTypeId={selectedNodeTypeId}
+          selectedNodeName={selectedNodeName}
           selectedEdgeId={selectedEdgeId}
-          injectChaos={injectChaos}
+          selectedNodeSimState={selectedNodeSimState}
+          injectChaos={handleChaosInject}
           speed={speed}
           onSpeedChange={handleSpeedChange}
           traffic={traffic}
@@ -495,8 +498,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public */}
-        <Route path="/"         element={<LandingView />} />
-        <Route path="/login"    element={<Login />} />
+        <Route path="/" element={<LandingView />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Protected */}

@@ -51,7 +51,7 @@ const KnowledgeCardSchema = new mongoose_1.Schema({
     keyMetrics: {
         throughput: { type: String, default: '' },
         latency: { type: String, default: '' },
-        cost: { type: String, default: '' }
+        typicalCost: { type: String, default: '' }
     },
     commonMistakes: { type: [String], default: [] },
     interviewTips: { type: String, default: '' }

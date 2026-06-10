@@ -1,26 +1,46 @@
 import { useEffect, useState } from 'react';
 import { getChaosExplanation } from '../data/content/index';
+import { aiApi } from '../api/client';
 
 interface ChaosExplainPanelProps {
   chaosId: string;
+  nodeName?: string;
+  nodeType?: string;
+  nodeCount?: number;
   onClose: () => void;
 }
 
-export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) {
+export function ChaosExplainPanel({ chaosId, nodeName, nodeType, nodeCount = 0, onClose }: ChaosExplainPanelProps) {
   const explanation = getChaosExplanation(chaosId);
   const [visible, setVisible] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 50);
     return () => clearTimeout(t);
   }, []);
 
+  // Fetch AI-enhanced explanation in background
+  useEffect(() => {
+    if (!nodeName || !nodeType) return;
+    setAiLoading(true);
+    aiApi.chaosExplain({
+      chaosType: chaosId,
+      nodeName,
+      nodeType,
+      architectureContext: { totalNodes: nodeCount, connectedNodes: [] },
+    })
+      .then(data => setAiExplanation(data?.explanation ?? null))
+      .catch(() => { /* static explanation already shown */ })
+      .finally(() => setAiLoading(false));
+  }, [chaosId, nodeName, nodeType]);
+
   const handleClose = () => {
     setVisible(false);
     setTimeout(onClose, 250);
   };
 
-  // Parse whatHappens string into numbered steps
   const steps = explanation?.whatHappens
     ? explanation.whatHappens
         .split(/\d+\.\s+/)
@@ -50,7 +70,7 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
           top: 0, right: 0,
           width: 460,
           height: '100vh',
-          background: '#0D0D10',
+          background: '#0C0A0A',
           borderLeft: '1px solid rgba(239,68,68,0.35)',
           boxShadow: '-8px 0 48px rgba(0,0,0,0.7)',
           zIndex: 96,
@@ -79,9 +99,15 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
               }}>
                 What just happened?
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#E2E8F0', letterSpacing: '-0.01em' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
                 {explanation?.name ?? chaosId}
               </div>
+              {nodeName && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  on <span style={{ color: '#EF4444', fontWeight: 500 }}>{nodeName}</span>
+                  {nodeType && <span style={{ color: 'var(--text-secondary)', marginLeft: 4 }}>({nodeType})</span>}
+                </div>
+              )}
             </div>
             <button
               onClick={handleClose}
@@ -105,6 +131,39 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
             <NoExplanation chaosId={chaosId} />
           ) : (
             <>
+              {/* AI Context (shown when loaded) */}
+              {(aiLoading || aiExplanation) && (
+                <div style={{
+                  marginBottom: 18,
+                  padding: '12px 14px',
+                  background: 'rgba(124,58,237,0.06)',
+                  border: '1px solid rgba(124,58,237,0.2)',
+                  borderRadius: 9,
+                }}>
+                  <div style={{
+                    fontSize: 10, fontFamily: "'IBM Plex Mono', monospace",
+                    fontWeight: 700, letterSpacing: '0.08em', color: '#7C3AED',
+                    marginBottom: 6, textTransform: 'uppercase',
+                  }}>
+                    🤖 AI Context
+                  </div>
+                  {aiLoading ? (
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                      {[0,1,2].map(i => (
+                        <div key={i} style={{
+                          width: 5, height: 5, borderRadius: '50%', background: '#7C3AED',
+                          animation: `dot-bounce 1.2s ${i * 0.2}s ease-in-out infinite`,
+                        }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: '#DDD6FE', lineHeight: 1.6 }}>
+                      {aiExplanation}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Step by step */}
               {steps.length > 0 && (
                 <>
@@ -127,7 +186,7 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
                         }}>
                           {i + 1}
                         </span>
-                        <span style={{ fontSize: 13, color: '#94A3B8', lineHeight: 1.55 }}>{step}</span>
+                        <span style={{ fontSize: 13, color: '#F3F4F6', lineHeight: 1.55 }}>{step}</span>
                       </div>
                     ))}
                   </div>
@@ -137,10 +196,10 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
               {/* User impact */}
               <SectionHeading color="#F97316">User impact</SectionHeading>
               <div style={{
-                background: 'rgba(249,115,22,0.06)',
-                border: '1px solid rgba(249,115,22,0.2)',
+                background: 'rgba(249,115,22,0.08)',
+                border: '1px solid rgba(249,115,22,0.25)',
                 borderRadius: 9, padding: '12px 14px', marginBottom: 20,
-                fontSize: 13.5, color: '#94A3B8', lineHeight: 1.6,
+                fontSize: 13.5, color: '#FED7AA', lineHeight: 1.6,
               }}>
                 {explanation.userImpact}
               </div>
@@ -153,7 +212,7 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
                     {explanation.cascadeEffects.map((e, i) => (
                       <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13 }}>
                         <span style={{ color: '#EAB308', flexShrink: 0, marginTop: 3, fontSize: 9 }}>◆</span>
-                        <span style={{ color: '#94A3B8', lineHeight: 1.55 }}>{e}</span>
+                        <span style={{ color: '#E5E7EB', lineHeight: 1.55 }}>{e}</span>
                       </li>
                     ))}
                   </ul>
@@ -173,7 +232,7 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
                         borderRadius: 7, padding: '8px 12px',
                       }}>
                         <span style={{ color: '#22C55E', flexShrink: 0, fontSize: 13 }}>✓</span>
-                        <span style={{ fontSize: 13, color: '#94A3B8', lineHeight: 1.5 }}>{s}</span>
+                        <span style={{ fontSize: 13, color: '#D1FAE5', lineHeight: 1.5 }}>{s}</span>
                       </div>
                     ))}
                   </div>
@@ -196,7 +255,7 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
                     }}>
                       In an interview, discuss…
                     </div>
-                    <div style={{ fontSize: 13.5, color: '#94A3B8', lineHeight: 1.65 }}>
+                    <div style={{ fontSize: 13.5, color: '#DDD6FE', lineHeight: 1.65 }}>
                       {explanation.interviewAngle}
                     </div>
                   </div>
@@ -211,7 +270,7 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
                     background: 'rgba(6,182,212,0.05)',
                     border: '1px solid rgba(6,182,212,0.18)',
                     borderRadius: 9, padding: '12px 14px',
-                    fontSize: 13, color: '#94A3B8', lineHeight: 1.6,
+                    fontSize: 13, color: '#BAE6FD', lineHeight: 1.6,
                   }}>
                     {explanation.realWorldExample}
                   </div>
@@ -221,6 +280,13 @@ export function ChaosExplainPanel({ chaosId, onClose }: ChaosExplainPanelProps) 
           )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes dot-bounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+          40%            { transform: scale(1.0); opacity: 1; }
+        }
+      `}</style>
     </>
   );
 }
@@ -241,10 +307,10 @@ function NoExplanation({ chaosId }: { chaosId: string }) {
   return (
     <div style={{ textAlign: 'center', paddingTop: 60 }}>
       <div style={{ fontSize: 36, marginBottom: 12 }}>💥</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: '#E2E8F0', marginBottom: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
         Chaos injected!
       </div>
-      <div style={{ fontSize: 12, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace" }}>
         Detailed explanation for <span style={{ color: '#A78BFA' }}>{chaosId}</span> coming soon.
       </div>
     </div>

@@ -30,6 +30,14 @@
   --text-dim:       #64748B;
   --text-muted:     #3A3A52;
 
+  /* Theme-aware aliases — panels/components should use these */
+  --bg-primary:    var(--bg);
+  --bg-secondary:  var(--sidebar-bg);
+  --bg-tertiary:   var(--panel-bg);
+  --bg-card:       var(--card-bg);
+  --text-primary:  var(--text);
+  --text-secondary: var(--text-dim);
+
   /* Accent */
   --accent:         #7C3AED;
   --accent-bright:  #8B5CF6;
@@ -187,14 +195,14 @@ input:focus, select:focus { border-color: var(--accent-bright); }
   pointer-events: all !important;
 }
 
-/* Edge flow animations — increasing dashoffset = forward (source→target) */
+/* Edge flow animations — decreasing dashoffset moves dashes forward (source→target) */
 @keyframes edge-flow {
-  from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: 23; }   /* 5px dash + 18px gap = 23px cycle */
+  from { stroke-dashoffset: 23; }
+  to   { stroke-dashoffset: 0; }    /* 5px dash + 18px gap = 23px cycle */
 }
 @keyframes edge-flow-attack {
-  from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: 16; }   /* 4px dash + 12px gap = 16px cycle */
+  from { stroke-dashoffset: 16; }
+  to   { stroke-dashoffset: 0; }    /* 4px dash + 12px gap = 16px cycle */
 }
 
 /* Animations */

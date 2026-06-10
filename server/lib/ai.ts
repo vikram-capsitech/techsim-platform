@@ -11,9 +11,20 @@ export async function callAI(
   const groqKey = customGroqKey || process.env.GROQ_API_KEY;
   const geminiKey = customGeminiKey || process.env.GEMINI_API_KEY;
 
+  console.log('AI Key Debug:', {
+    customGroqKey,
+    envGroqKey: process.env.GROQ_API_KEY,
+    groqKey,
+    customGeminiKey,
+    envGeminiKey: process.env.GEMINI_API_KEY,
+    geminiKey
+  });
+
   if (!groqKey && !geminiKey) {
     throw new Error('No Groq or Gemini API key configured on server or client');
   }
+
+  let lastError: Error | null = null;
 
   // Try Groq first if key is available
   if (groqKey) {
@@ -31,6 +42,7 @@ export async function callAI(
       return completion.choices[0].message.content || '';
     } catch (groqError) {
       console.warn('Groq failed, trying Gemini fallback:', groqError);
+      lastError = groqError instanceof Error ? groqError : new Error(String(groqError));
     }
   }
 
@@ -46,9 +58,9 @@ export async function callAI(
       return result.response.text();
     } catch (geminiError) {
       console.error('Gemini fallback failed:', geminiError);
-      throw new Error('All AI providers failed');
+      lastError = geminiError instanceof Error ? geminiError : new Error(String(geminiError));
     }
   }
 
-  throw new Error('No Groq or Gemini API key configured on server or client');
+  throw lastError || new Error('No Groq or Gemini API key configured on server or client');
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
+import { aiApi } from '../api/client';
 
 // Maps AI nodeType → canvas nodeTypeId + lucide icon name
 const NODE_TYPE_MAP: Record<string, { nodeTypeId: string; icon: string }> = {
@@ -107,26 +108,7 @@ export function AIGeneratorPanel({ onClose }: { onClose: () => void }) {
     }, 1500);
 
     try {
-      const token = localStorage.getItem('techsim_token');
-      const groqKey = localStorage.getItem('groq_api_key') ?? '';
-      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
-      const res = await fetch('http://localhost:5000/api/ai/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
-          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
-        },
-        body: JSON.stringify({ prompt, module: 'system_design' }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? 'Generation failed');
-      }
-
-      const raw = await res.json();
+      const raw = await aiApi.generate(prompt, 'system_design');
       const diagram = transformDiagram(raw);
 
       setNodes(diagram.nodes);

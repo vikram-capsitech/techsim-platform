@@ -19,14 +19,15 @@ import knowledgeRoutes from './routes/knowledge';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS options preflight for all routes and apply CORS settings
-app.options(/(.*)/, cors());
-app.use(cors({
+const corsOptions = {
   origin: 'http://localhost:5173',
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Groq-API-Key', 'X-Gemini-API-Key'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-}));
+};
+
+app.use(cors(corsOptions));
+app.options(/(.*)/, cors(corsOptions));
 
 // Body parser
 app.use(express.json());

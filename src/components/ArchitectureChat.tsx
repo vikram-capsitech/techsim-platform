@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { aiApi } from '../api/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface ChatMessage {
@@ -12,7 +13,7 @@ interface ArchitectureChatProps {
   onClose: () => void;
 }
 
-const API_BASE = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:5000';
+
 
 const SUGGESTED_QUESTIONS = [
   'How can I improve the scalability of this architecture?',
@@ -75,7 +76,7 @@ export function ArchitectureChat({ architectureContext, onClose }: ArchitectureC
     if (!minimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading, minimized]);
 
-  const token = localStorage.getItem('techsim_token');
+
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -88,28 +89,43 @@ export function ArchitectureChat({ architectureContext, onClose }: ArchitectureC
     setLoading(true);
 
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
-      const groqKey = localStorage.getItem('groq_api_key') ?? '';
-      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
-      const res = await fetch(`${API_BASE}/api/ai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
-          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
-        },
-        body: JSON.stringify({
-          message: trimmed,
-          architectureContext: architectureContext ?? '',
-          conversationHistory: history,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({})) as { error?: string; detail?: string };
-        throw new Error(errBody.detail ?? errBody.error ?? `HTTP ${res.status}`);
+      const history = messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' as const : 'user' as const, content: m.content }));
+      
+      let finalContext: any = null;
+      if (architectureContext) {
+        try {
+          const parsed = JSON.parse(architectureContext);
+          if (parsed && Array.isArray(parsed.nodes)) {
+            const nodeTypes = parsed.nodes.map((n: any) => n.type);
+            finalContext = {
+              nodeCount: parsed.nodes.length,
+              components: parsed.nodes.map((n: any) => ({ name: n.label || n.id })),
+              hasLoadBalancer: nodeTypes.includes('load-balancer'),
+              hasCache: nodeTypes.includes('redis'),
+              hasQueue: nodeTypes.includes('kafka') || nodeTypes.includes('rabbitmq') || nodeTypes.includes('sqs') || nodeTypes.includes('event-bus'),
+              hasMonitoring: nodeTypes.includes('prometheus') || nodeTypes.includes('grafana') || nodeTypes.includes('datadog'),
+            };
+          } else {
+            finalContext = parsed;
+          }
+        } catch {
+          finalContext = {
+            nodeCount: 0,
+            components: [],
+            hasLoadBalancer: false,
+            hasCache: false,
+            hasQueue: false,
+            hasMonitoring: false,
+            rawContext: architectureContext
+          };
+        }
       }
-      const data = await res.json() as { response: string };
+
+      const data = await aiApi.chat({
+        message: trimmed,
+        architectureContext: finalContext,
+        conversationHistory: history,
+      });
       setMessages(prev => [...prev, { role: 'assistant', content: data.response, ts: Date.now() }]);
     } catch (err) {
       const msg = (err as Error).message ?? '';

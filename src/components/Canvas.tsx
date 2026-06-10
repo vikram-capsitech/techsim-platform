@@ -464,6 +464,17 @@ export function Canvas({
     [isSimulationRunning, nodeStates, nodes],
   );
 
+  const renderedEdges = useMemo(
+    () => edges.map((edge) => ({
+      ...edge,
+      data: {
+        ...edge.data,
+        isBlocked: edgeStates.get(edge.id)?.isBlocked ?? false,
+      },
+    })),
+    [edges, edgeStates],
+  );
+
   return (
     <div ref={wrapperRef} style={{ flex: 1, height: '100%', position: 'relative' }}>
       {/* Top-center canvas controls */}
@@ -690,7 +701,7 @@ export function Canvas({
 
       <ReactFlow
         nodes={renderedNodes}
-        edges={edges}
+        edges={renderedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -797,7 +808,7 @@ function PacketOverlay({
     const result: { id: string; x: number; y: number; color: string; r: number }[] = [];
 
     edgeStates.forEach((edgeState, edgeId) => {
-      if (edgeState.isPartitioned || !edgeState.packets.length) return;
+      if (edgeState.isPartitioned || edgeState.isBlocked || !edgeState.packets.length) return;
 
       // Get the actual rendered SVG path for this edge (GlowEdge sets id={edgeId} on its main path)
       const pathEl = document.getElementById(edgeId) as unknown as SVGPathElement | null;

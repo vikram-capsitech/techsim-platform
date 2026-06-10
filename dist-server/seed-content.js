@@ -17,6 +17,7 @@ async function seedContent() {
         await (0, mongodb_1.connectToDatabase)();
         // Upsert knowledge cards
         console.log('Upserting knowledge cards...');
+        await KnowledgeCard_1.default.deleteMany({});
         for (const card of knowledgeCards_json_1.default.components) {
             await KnowledgeCard_1.default.findOneAndUpdate({ componentId: card.componentId }, card, { upsert: true, new: true });
         }

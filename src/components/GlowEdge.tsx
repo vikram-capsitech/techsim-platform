@@ -54,10 +54,11 @@ export const GlowEdge = memo(function GlowEdge({
   const edgeData = data as GlowEdgeData;
   const protocol: EdgeProtocol = edgeData?.protocol ?? 'http';
   const invalid = edgeData?.invalid ?? false;
+  const isBlocked = (edgeData as { isBlocked?: boolean })?.isBlocked ?? false;
   const edgeType: EdgeRoutingType = (edgeData?.edgeType as EdgeRoutingType) ?? 'bezier';
 
   const meta = PROTOCOL_META[protocol];
-  const baseColor = invalid ? INVALID_COLOR : (edgeData?.color ?? meta.color);
+  const baseColor = isBlocked ? '#EF4444' : invalid ? INVALID_COLOR : (edgeData?.color ?? meta.color);
 
   // Compute path based on routing type
   let edgePath: string;
@@ -91,8 +92,8 @@ export const GlowEdge = memo(function GlowEdge({
   };
 
   const filterId = `glow-${id}`;
-  const intensity = selected || hovered ? 3 : invalid ? 2.5 : 1.5;
-  const opacity   = selected || hovered ? 0.9 : 0.55;
+  const intensity = selected || hovered ? 3 : (invalid || isBlocked) ? 2.5 : 1.5;
+  const opacity   = isBlocked ? 0.35 : selected || hovered ? 0.9 : 0.55;
 
   return (
     <>
@@ -148,20 +149,44 @@ export const GlowEdge = memo(function GlowEdge({
         style={{ transition: 'stroke-opacity 0.2s, stroke-width 0.2s', pointerEvents: 'none' }}
       />
 
-      {/* Animated flow particle — increasing dashoffset moves dashes source→target */}
+      {/* Animated flow particle — stops when blocked */}
       <path
         d={edgePath}
         fill="none"
         stroke={baseColor}
-        strokeWidth={invalid ? 2.5 : 2}
-        strokeOpacity={invalid ? 0.9 : 0.75}
-        strokeDasharray={invalid ? '4 12' : '5 18'}
+        strokeWidth={isBlocked ? 1.5 : invalid ? 2.5 : 2}
+        strokeOpacity={isBlocked ? 0.5 : invalid ? 0.9 : 0.75}
+        strokeDasharray={isBlocked ? '3 6' : invalid ? '4 12' : '5 18'}
         strokeLinecap="round"
         style={{
           pointerEvents: 'none',
-          animation: `${invalid ? 'edge-flow-attack' : 'edge-flow'} ${meta.dashSpeed} linear infinite`,
+          animation: isBlocked
+            ? undefined
+            : `${invalid ? 'edge-flow-attack' : 'edge-flow'} ${meta.dashSpeed} linear infinite`,
         }}
       />
+
+      {/* ✕ badge — shown when edge is blocked */}
+      {isBlocked && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'none',
+              zIndex: 10,
+              width: 16, height: 16,
+              borderRadius: '50%',
+              background: '#EF4444',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontSize: 9, fontWeight: 800,
+              boxShadow: '0 0 6px #EF444466',
+            }}
+          >
+            ✕
+          </div>
+        </EdgeLabelRenderer>
+      )}
 
       {/* Edge toolbar — routing switcher + delete button, shown when selected */}
       {selected && (

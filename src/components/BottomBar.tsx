@@ -1,14 +1,294 @@
+import { useState } from 'react';
 import { AlertTriangle, Play, Square, RefreshCw, Clock, Layers3 } from 'lucide-react';
-import type { SimMetrics } from '../simulation/SimulationEngine';
+import type { SimMetrics, NodeState } from '../simulation/SimulationEngine';
 import type { ValidationIssue } from '../types';
+import { getValidChaos, CHAOS_LABELS, CHAOS_TO_ACTION } from '../data/chaosValidation';
+import { ChaosBlockedModal, CHAOS_BLOCKED_REASONS, type ChaosBlockedInfo } from './ChaosBlockedModal';
 
 // ── Snap points for sliders ──────────────────────────────────────────────────
 const SPEED_SNAPS = [0, 0.5, 1, 2.5, 5];
 const TRAFFIC_SNAPS = [0, 0.5, 1, 2.5, 5];
 const SLIDER_MAX = 5;
 
-// Tick label positions: value → % of track
 function toPercent(v: number) { return (v / SLIDER_MAX) * 100; }
+
+// ── All 21 scenarios grouped by category ────────────────────────────────────
+const ALL_CHAOS_SCENARIOS = [
+  { id: 'node_crash',                category: 'Infrastructure' },
+  { id: 'memory_leak',               category: 'Infrastructure' },
+  { id: 'cpu_spike',                 category: 'Infrastructure' },
+  { id: 'disk_full',                 category: 'Infrastructure' },
+  { id: 'high_latency',              category: 'Infrastructure' },
+  { id: 'network_partition',         category: 'Network' },
+  { id: 'packet_loss',               category: 'Network' },
+  { id: 'ssl_cert_expiry',           category: 'Network' },
+  { id: 'ddos',                      category: 'Network' },
+  { id: 'dns_poisoning',             category: 'Network' },
+  { id: 'thread_pool_exhaustion',    category: 'Application' },
+  { id: 'deadlock',                  category: 'Application' },
+  { id: 'connection_pool_exhausted', category: 'Application' },
+  { id: 'slow_queries',              category: 'Application' },
+  { id: 'replication_lag',           category: 'Data' },
+  { id: 'split_brain',               category: 'Data' },
+  { id: 'cache_eviction_storm',      category: 'Data' },
+  { id: 'memory_oom',                category: 'Data' },
+  { id: 'queue_full',                category: 'Queue' },
+  { id: 'consumer_lag',              category: 'Queue' },
+  { id: 'poison_message',            category: 'Queue' },
+] as const;
+
+type Scenario = typeof ALL_CHAOS_SCENARIOS[number];
+
+const GROUPED: Record<string, Scenario[]> = {};
+for (const s of ALL_CHAOS_SCENARIOS) {
+  if (!GROUPED[s.category]) GROUPED[s.category] = [];
+  GROUPED[s.category].push(s);
+}
+
+// ── Floating chaos panel ─────────────────────────────────────────────────────
+function ChaosArea({
+  isRunning,
+  selectedNodeId,
+  selectedNodeName,
+  selectedNodeType,
+  selectedNodeSimState,
+  injectChaos,
+}: {
+  isRunning: boolean;
+  selectedNodeId: string | null;
+  selectedNodeName: string | null;
+  selectedNodeType: string | null;
+  selectedNodeSimState: NodeState | null;
+  injectChaos: (type: string, targetId: string) => void;
+}) {
+  const [blockedModal, setBlockedModal] = useState<ChaosBlockedInfo | null>(null);
+
+  if (!isRunning || !selectedNodeId) return null;
+
+  const nodeDown = selectedNodeSimState?.status === 'down';
+  const validSet = new Set(getValidChaos(selectedNodeType ?? ''));
+
+  const handleClick = (chaosId: string) => {
+    if (nodeDown) return;
+    const isValid = validSet.has(chaosId);
+    if (!isValid) {
+      const blocked = CHAOS_BLOCKED_REASONS[chaosId];
+      setBlockedModal({
+        chaosType: chaosId,
+        chaosLabel: CHAOS_LABELS[chaosId] ?? chaosId,
+        nodeType: selectedNodeType ?? '',
+        nodeName: selectedNodeName ?? selectedNodeId,
+        reason: blocked?.reason ?? `${CHAOS_LABELS[chaosId] ?? chaosId} cannot affect ${selectedNodeType ?? 'this'} nodes. This failure mode only occurs in specific infrastructure components.`,
+        validForTypes: blocked?.validForTypes ?? [],
+        validChaosForThisNode: Array.from(validSet),
+      });
+      return;
+    }
+    const action = CHAOS_TO_ACTION[chaosId];
+    if (!action) return;
+    const target = action.method === 'surge' ? '' : selectedNodeId;
+    injectChaos(action.method, target);
+  };
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 62,
+          left: 12,
+          width: 300,
+          maxHeight: 'calc(100vh - 140px)',
+          overflowY: 'auto',
+          background: 'var(--sidebar-bg)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.55)',
+          zIndex: 50,
+          padding: '10px 12px 12px',
+          fontFamily: "'DM Sans', sans-serif",
+        }}
+      >
+        {/* Targeting header */}
+        <div style={{
+          fontSize: 11,
+          marginBottom: 10,
+          padding: '5px 8px',
+          background: 'rgba(255,255,255,0.04)',
+          borderRadius: 6,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          border: '1px solid var(--border)',
+        }}>
+          <span style={{ color: 'var(--text-secondary)' }}>
+            Target:{' '}
+            <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+              {selectedNodeName ?? selectedNodeId}
+            </strong>
+          </span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>
+            {validSet.size} applicable
+          </span>
+        </div>
+
+        {/* DOWN banner */}
+        {nodeDown && (
+          <div style={{
+            marginBottom: 10,
+            padding: '7px 10px',
+            background: 'rgba(16,185,129,0.08)',
+            border: '1px solid rgba(16,185,129,0.3)',
+            borderRadius: 7,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}>
+            <div>
+              <div style={{ color: '#10B981', fontSize: 11, fontWeight: 600 }}>Node is DOWN</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>Heal it before injecting more chaos</div>
+            </div>
+            <button
+              onClick={() => injectChaos('heal', selectedNodeId)}
+              style={{
+                background: '#10B981',
+                border: 'none',
+                color: 'white',
+                borderRadius: 6,
+                padding: '4px 10px',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              ↺ Restart
+            </button>
+          </div>
+        )}
+
+        {/* Grouped scenarios */}
+        {Object.entries(GROUPED).map(([category, scenarios]) => (
+          <div key={category} style={{ marginBottom: 10 }}>
+            <div style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: 'var(--text-muted)',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              marginBottom: 5,
+              fontFamily: "'IBM Plex Mono', monospace",
+            }}>
+              {category}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {scenarios.map(scenario => {
+                const isValid = validSet.has(scenario.id) && !nodeDown;
+                const label = CHAOS_LABELS[scenario.id] ?? scenario.id;
+                return (
+                  <button
+                    key={scenario.id}
+                    onClick={() => handleClick(scenario.id)}
+                    title={isValid
+                      ? `Apply ${label} to ${selectedNodeName ?? selectedNodeId}`
+                      : nodeDown
+                        ? 'Heal the node first'
+                        : `${label} — not applicable here (click to learn why)`}
+                    style={{
+                      background: isValid ? '#EF444415' : 'transparent',
+                      border: `1px solid ${isValid ? '#EF444440' : 'var(--border)'}`,
+                      color: isValid ? '#EF4444' : 'var(--text-muted)',
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: isValid ? 500 : 400,
+                      opacity: isValid ? 1 : 0.45,
+                      transition: 'all 0.15s',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}
+                    onMouseEnter={e => {
+                      if (isValid) {
+                        e.currentTarget.style.background = '#EF444425';
+                        e.currentTarget.style.borderColor = '#EF444466';
+                      } else {
+                        e.currentTarget.style.opacity = '0.7';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = isValid ? '#EF444415' : 'transparent';
+                      e.currentTarget.style.borderColor = isValid ? '#EF444440' : 'var(--border)';
+                      e.currentTarget.style.opacity = isValid ? '1' : '0.45';
+                    }}
+                  >
+                    {label}
+                    {!isValid && !nodeDown && (
+                      <span style={{ fontSize: 9, opacity: 0.7 }}>🔒</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Heal button */}
+        <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 2 }}>
+          <button
+            onClick={() => injectChaos('heal', selectedNodeId)}
+            style={{
+              width: '100%',
+              background: '#10B98115',
+              border: '1px solid #10B98140',
+              color: '#10B981',
+              borderRadius: 6,
+              padding: '5px',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 500,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#10B98125'; e.currentTarget.style.borderColor = '#10B98160'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#10B98115'; e.currentTarget.style.borderColor = '#10B98140'; }}
+          >
+            💚 Heal / Restart Node
+          </button>
+        </div>
+      </div>
+
+      {blockedModal && (
+        <ChaosBlockedModal info={blockedModal} onClose={() => setBlockedModal(null)} />
+      )}
+    </>
+  );
+}
+
+// ── Edge chaos inline buttons (kept small, in the bar) ───────────────────────
+function ScenarioBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center',
+        padding: '3px 8px', borderRadius: 6,
+        border: `1px solid ${color}44`,
+        background: `${color}12`,
+        color,
+        fontSize: 10, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
+        cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = `${color}22`)}
+      onMouseLeave={e => (e.currentTarget.style.background = `${color}12`)}
+    >
+      {label}
+    </button>
+  );
+}
 
 // ── Slider sub-component ─────────────────────────────────────────────────────
 function SimSlider({
@@ -28,7 +308,6 @@ function SimSlider({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 140 }}>
-      {/* Label row */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
         <span style={{
           fontSize: 9, fontFamily: "'IBM Plex Mono', monospace",
@@ -44,7 +323,6 @@ function SimSlider({
         </span>
       </div>
 
-      {/* Track + thumb */}
       <div style={{ position: 'relative', paddingBottom: 10 }}>
         <input
           type="range"
@@ -56,7 +334,6 @@ function SimSlider({
           className={`sim-slider${className ? ` ${className}` : ''}`}
           style={{ width: '100%' }}
         />
-        {/* Tick marks + labels */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', pointerEvents: 'none' }}>
           {ticks.map((t) => (
             <div
@@ -86,146 +363,61 @@ function SimSlider({
   );
 }
 
-// ── Node-type → sim role mapping ─────────────────────────────────────────────
-const NODE_TYPE_TO_ROLE: Record<string, string> = {
-  'load-balancer': 'loadBalancer', 'api-gateway': 'loadBalancer',
-  'router': 'loadBalancer', 'waf': 'loadBalancer',
-  'postgres': 'database', 'mysql': 'database', 'mongodb': 'database',
-  'elastic': 'database', 'data-warehouse': 'database', 'timeseries-db': 'database',
-  'redis': 'cache',
-  'kafka': 'queue', 'rabbitmq': 'queue', 'sqs': 'queue',
-  'pubsub': 'queue', 'event-bus': 'queue', 'nats': 'queue',
-  'microservice': 'microservice', 'api-server': 'microservice',
-  'worker': 'microservice', 'lambda': 'microservice',
-  'cdn': 'cdn',
-};
-
-const CHAOS_BY_ROLE: Record<string, { label: string; method: string }[]> = {
-  loadBalancer: [
-    { label: 'Node Crash',       method: 'crash' },
-    { label: 'Config Error',     method: 'crash' },
-    { label: 'Connection Flood', method: 'surge' },
-    { label: 'SSL Cert Expire',  method: 'crash' },
-  ],
-  database: [
-    { label: 'Primary Failure',  method: 'crash' },
-    { label: 'Disk Full',        method: 'crash' },
-    { label: 'Slow Queries',     method: 'crash' },
-    { label: 'Replication Lag',  method: 'crash' },
-    { label: 'Conn Pool Exhausted', method: 'crash' },
-  ],
-  cache: [
-    { label: 'Cache Miss Storm', method: 'crash' },
-    { label: 'Memory OOM',       method: 'crash' },
-    { label: 'Eviction Storm',   method: 'crash' },
-    { label: 'Network Partition',method: 'crash' },
-  ],
-  queue: [
-    { label: 'Queue Full',       method: 'crash' },
-    { label: 'Consumer Lag',     method: 'crash' },
-    { label: 'Poison Message',   method: 'crash' },
-    { label: 'Broker Down',      method: 'crash' },
-  ],
-  microservice: [
-    { label: 'Memory Leak',      method: 'crash' },
-    { label: 'Thread Exhaustion',method: 'crash' },
-    { label: 'Deadlock',         method: 'crash' },
-    { label: 'CPU Spike',        method: 'crash' },
-  ],
-  cdn: [
-    { label: 'Cache Invalidation', method: 'crash' },
-    { label: 'Origin Timeout',     method: 'crash' },
-    { label: 'DDoS',               method: 'surge' },
-  ],
-  default: [
-    { label: 'Node Crash',       method: 'crash' },
-    { label: 'CPU Spike',        method: 'crash' },
-    { label: 'Memory Leak',      method: 'crash' },
-    { label: 'Net Partition',    method: 'crash' },
-  ],
-};
-
-// ── Chaos area ────────────────────────────────────────────────────────────────
-function ChaosArea({ isRunning, selectedNodeId, selectedNodeTypeId, selectedEdgeId, injectChaos }: {
-  isRunning: boolean;
-  selectedNodeId: string | null;
-  selectedNodeTypeId: string | null;
-  selectedEdgeId: string | null;
-  injectChaos: (type: string, targetId: string) => void;
-}) {
-  const muted: React.CSSProperties = {
-    fontSize: 10, color: '#3A3A52',
-    fontFamily: "'IBM Plex Mono', monospace",
-    whiteSpace: 'nowrap', flexShrink: 0,
-  };
-
-  if (!isRunning) {
-    return <span style={muted}>▶ start sim first</span>;
-  }
-
-  // Edge chaos — shown when an edge is selected and no node is selected
-  if (!selectedNodeId && selectedEdgeId) {
-    return (
-      <div style={{ display: 'flex', gap: 4 }}>
-        <ScenarioBtn label="⚡ Latency" color="#FACC15"
-          onClick={() => injectChaos('latency', selectedEdgeId)} />
-        <ScenarioBtn label="✂ Partition" color="#C084FC"
-          onClick={() => injectChaos('partition', selectedEdgeId)} />
-      </div>
-    );
-  }
-
-  if (!selectedNodeId) {
-    return <span style={muted}>click a node to inject chaos</span>;
-  }
-
-  const role = NODE_TYPE_TO_ROLE[selectedNodeTypeId ?? ''] ?? 'default';
-  const scenarios = CHAOS_BY_ROLE[role] ?? CHAOS_BY_ROLE.default;
-
+// ── Status legend item (two-line: name + description) ───────────────────────
+function StatusItem({ color, label, sub }: { color: string; label: string; sub: string }) {
   return (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap', overflow: 'hidden' }}>
-      {scenarios.map(s => (
-        <ScenarioBtn key={s.label} label={`💥 ${s.label}`} color="#F87171"
-          onClick={() => injectChaos(s.method, s.method === 'surge' ? '' : selectedNodeId)} />
-      ))}
-      <ScenarioBtn label="💚 Heal" color="#4ADE80"
-        onClick={() => injectChaos('heal', selectedNodeId)} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+          background: color, boxShadow: `0 0 4px ${color}88`,
+        }} />
+        <span style={{
+          fontSize: 10, color: 'var(--text-dim)',
+          fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+          whiteSpace: 'nowrap',
+        }}>
+          {label}
+        </span>
+      </div>
+      <span style={{
+        fontSize: 8.5, color: 'var(--text-muted)',
+        paddingLeft: 10, whiteSpace: 'nowrap',
+        fontFamily: "'IBM Plex Mono', monospace",
+      }}>
+        {sub}
+      </span>
     </div>
   );
 }
 
-function ScenarioBtn({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
+// ── Packet flow legend item ──────────────────────────────────────────────────
+function PacketItem({ color, label, sub, square }: { color: string; label: string; sub: string; square?: boolean }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'inline-flex', alignItems: 'center',
-        padding: '3px 8px', borderRadius: 6,
-        border: `1px solid ${color}44`,
-        background: `${color}12`,
-        color,
-        fontSize: 10, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
-        cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-        transition: 'background 0.12s',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = `${color}22`)}
-      onMouseLeave={e => (e.currentTarget.style.background = `${color}12`)}
-    >
-      {label}
-    </button>
-  );
-}
-
-// ── Status legend dot ────────────────────────────────────────────────────────
-function StatusDot({ color, label }: { color: string; label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{
+          width: square ? 6 : 5,
+          height: square ? 6 : 5,
+          borderRadius: square ? 1 : '50%',
+          flexShrink: 0,
+          background: color,
+          boxShadow: `0 0 4px ${color}88`,
+        }} />
+        <span style={{
+          fontSize: 10, color: 'var(--text-dim)',
+          fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+          whiteSpace: 'nowrap',
+        }}>
+          {label}
+        </span>
+      </div>
       <span style={{
-        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-        background: color, boxShadow: `0 0 4px ${color}88`,
-      }} />
-      <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: "'DM Sans', sans-serif" }}>
-        {label}
+        fontSize: 8.5, color: 'var(--text-muted)',
+        paddingLeft: 9, whiteSpace: 'nowrap',
+        fontFamily: "'IBM Plex Mono', monospace",
+      }}>
+        {sub}
       </span>
     </div>
   );
@@ -270,7 +462,9 @@ export interface BottomBarProps {
   onIssuesClick: () => void;
   selectedNodeId: string | null;
   selectedNodeTypeId: string | null;
+  selectedNodeName?: string | null;
   selectedEdgeId: string | null;
+  selectedNodeSimState: NodeState | null;
   injectChaos: (type: string, targetId: string) => void;
   speed: number;
   onSpeedChange: (v: number) => void;
@@ -286,7 +480,7 @@ export function BottomBar({
   isRunning, onToggle,
   metrics,
   issues, onIssuesClick,
-  selectedNodeId, selectedNodeTypeId, selectedEdgeId,
+  selectedNodeId, selectedNodeTypeId, selectedNodeName, selectedEdgeId, selectedNodeSimState,
   injectChaos,
   speed, onSpeedChange,
   traffic, onTrafficChange,
@@ -301,159 +495,186 @@ export function BottomBar({
   const errColor   = metrics.errorRate > 0.05 ? '#EF4444' : metrics.errorRate > 0.01 ? '#EAB308' : '#22C55E';
 
   return (
-    <div
-      style={{
-        height: 58,
-        background: 'var(--sidebar-bg)',
-        borderTop: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 12px',
-        gap: 10,
-        flexShrink: 0,
-        zIndex: 10,
-        overflow: 'hidden',
-      }}
-    >
-      {/* ── LEFT: issues + run + chaos ────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-        {/* Issues button */}
-        <button
-          onClick={onIssuesClick}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            padding: '5px 10px', borderRadius: 7,
-            background: criticalCount > 0
-              ? 'rgba(239,68,68,0.1)'
-              : warnCount > 0
-              ? 'rgba(234,179,8,0.1)'
-              : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${criticalCount > 0 ? 'rgba(239,68,68,0.3)' : warnCount > 0 ? 'rgba(234,179,8,0.3)' : 'rgba(255,255,255,0.08)'}`,
-            color: criticalCount > 0 ? '#EF4444' : warnCount > 0 ? '#EAB308' : 'var(--text-dim)',
-            fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
-            cursor: 'pointer',
-          }}
-        >
-          <AlertTriangle size={11} />
-          ISSUES
-          {issues.length > 0 && (
-            <span style={{
-              background: criticalCount > 0 ? '#EF4444' : '#EAB308',
-              color: '#0A0A0F', borderRadius: 9, padding: '0 5px',
-              fontSize: 9, fontWeight: 800, lineHeight: '14px',
-            }}>
-              {issues.length}
-            </span>
-          )}
-        </button>
-
-        {/* Run/Stop */}
-        <button
-          onClick={onToggle}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px', borderRadius: 7,
-            background: isRunning ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
-            border: `1px solid ${isRunning ? 'rgba(239,68,68,0.35)' : 'rgba(34,197,94,0.35)'}`,
-            color: isRunning ? '#EF4444' : '#22C55E',
-            fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
-            cursor: 'pointer',
-            minWidth: 72,
-          }}
-        >
-          {isRunning ? <Square size={10} /> : <Play size={10} />}
-          {isRunning ? 'STOP' : 'RUN'}
-        </button>
-
-        {/* Score button */}
-        {onScoreClick && (
+    <>
+      <div
+        style={{
+          height: 58,
+          background: 'var(--sidebar-bg)',
+          borderTop: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 12px',
+          gap: 10,
+          flexShrink: 0,
+          zIndex: 10,
+          overflow: 'hidden',
+        }}
+      >
+        {/* ── LEFT: issues + run + chaos indicator ─────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+          {/* Issues button */}
           <button
-            onClick={onScoreClick}
+            onClick={onIssuesClick}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '5px 10px', borderRadius: 7,
-              background: 'rgba(124,58,237,0.1)',
-              border: '1px solid rgba(124,58,237,0.3)',
-              color: '#A78BFA',
+              background: criticalCount > 0
+                ? 'rgba(239,68,68,0.1)'
+                : warnCount > 0
+                ? 'rgba(234,179,8,0.1)'
+                : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${criticalCount > 0 ? 'rgba(239,68,68,0.3)' : warnCount > 0 ? 'rgba(234,179,8,0.3)' : 'rgba(255,255,255,0.08)'}`,
+              color: criticalCount > 0 ? '#EF4444' : warnCount > 0 ? '#EAB308' : 'var(--text-dim)',
               fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
               cursor: 'pointer',
             }}
           >
-            📊 SCORE
+            <AlertTriangle size={11} />
+            ISSUES
+            {issues.length > 0 && (
+              <span style={{
+                background: criticalCount > 0 ? '#EF4444' : '#EAB308',
+                color: '#0A0A0F', borderRadius: 9, padding: '0 5px',
+                fontSize: 9, fontWeight: 800, lineHeight: '14px',
+              }}>
+                {issues.length}
+              </span>
+            )}
           </button>
-        )}
+
+          {/* Run/Stop */}
+          <button
+            onClick={onToggle}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '5px 12px', borderRadius: 7,
+              background: isRunning ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
+              border: `1px solid ${isRunning ? 'rgba(239,68,68,0.35)' : 'rgba(34,197,94,0.35)'}`,
+              color: isRunning ? '#EF4444' : '#22C55E',
+              fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
+              cursor: 'pointer',
+              minWidth: 72,
+            }}
+          >
+            {isRunning ? <Square size={10} /> : <Play size={10} />}
+            {isRunning ? 'STOP' : 'RUN'}
+          </button>
+
+          {/* Score button */}
+          {onScoreClick && (
+            <button
+              onClick={onScoreClick}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '5px 10px', borderRadius: 7,
+                background: 'rgba(124,58,237,0.1)',
+                border: '1px solid rgba(124,58,237,0.3)',
+                color: '#A78BFA',
+                fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
+                cursor: 'pointer',
+              }}
+            >
+              📊 SCORE
+            </button>
+          )}
+
+          <Div />
+
+          {/* Chaos indicator */}
+          <span style={{
+            fontSize: 9.5, fontWeight: 700, color: '#F87171',
+            fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.08em',
+            flexShrink: 0,
+          }}>
+            ⚡ CHAOS
+          </span>
+
+          {/* Context label */}
+          {!isRunning && (
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'nowrap' }}>
+              ▶ start sim first
+            </span>
+          )}
+          {isRunning && selectedNodeId && (
+            <span style={{
+              fontSize: 10, color: '#EF4444', fontFamily: "'IBM Plex Mono', monospace",
+              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              → {selectedNodeName ?? selectedNodeId}
+            </span>
+          )}
+          {isRunning && !selectedNodeId && selectedEdgeId && (
+            <div style={{ display: 'flex', gap: 4 }}>
+              <ScenarioBtn label="⚡ Latency"   color="#FACC15" onClick={() => injectChaos('latency', selectedEdgeId)} />
+              <ScenarioBtn label="✂ Partition" color="#C084FC" onClick={() => injectChaos('partition', selectedEdgeId)} />
+            </div>
+          )}
+          {isRunning && !selectedNodeId && !selectedEdgeId && (
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'nowrap' }}>
+              click a node to inject chaos
+            </span>
+          )}
+        </div>
 
         <Div />
 
-        {/* Chaos label */}
-        <span style={{
-          fontSize: 9.5, fontWeight: 700, color: '#F87171',
-          fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.08em',
-          flexShrink: 0,
+        {/* ── CENTER: sliders ───────────────────────────────────────── */}
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 20,
+          padding: '0 16px', minWidth: 0, maxWidth: 380,
         }}>
-          ⚡ CHAOS
-        </span>
-
-        {/* Dynamic chaos area */}
-        <ChaosArea
-          isRunning={isRunning}
-          selectedNodeId={selectedNodeId}
-          selectedNodeTypeId={selectedNodeTypeId}
-          selectedEdgeId={selectedEdgeId}
-          injectChaos={injectChaos}
-        />
-      </div>
-
-      <Div />
-
-      {/* ── CENTER: sliders ───────────────────────────────────────── */}
-      <div style={{
-        flex: 1, display: 'flex', alignItems: 'center', gap: 20,
-        padding: '0 16px', minWidth: 0, maxWidth: 380,
-      }}>
-        <SimSlider
-          label="Speed"
-          value={speed}
-          onChange={onSpeedChange}
-          color="#8B5CF6"
-        />
-        <SimSlider
-          label="Traffic"
-          value={traffic}
-          onChange={onTrafficChange}
-          color="#F59E0B"
-          className="traffic"
-        />
-      </div>
-
-      <Div />
-
-      {/* ── RIGHT: status + metrics ───────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        {/* Status legend */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <StatusDot color="#22C55E" label="Optimal" />
-          <StatusDot color="#EAB308" label="Degraded" />
-          <StatusDot color="#EF4444" label="Critical" />
+          <SimSlider label="Speed"   value={speed}   onChange={onSpeedChange}   color="#8B5CF6" />
+          <SimSlider label="Traffic" value={traffic} onChange={onTrafficChange} color="#F59E0B" className="traffic" />
         </div>
 
         <Div />
 
-        {/* Metrics */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <Metric icon={<RefreshCw size={10} />} label="RPS"
-            value={fmtRps(metrics.globalRPS)} color={rpsColor} />
-          <Metric icon={<Clock size={10} />} label="P99"
-            value={fmtMs(metrics.p99)} color={p99Color} />
-          <Metric icon={<AlertTriangle size={10} />} label="Errors"
-            value={fmtPct(metrics.errorRate)} color={errColor} />
-          <Metric
-            icon={<Layers3 size={10} />} label="Active"
-            value={`${activeNodeCount}/${totalNodeCount}`}
-            color="var(--text-dim)"
-          />
+        {/* ── RIGHT: status + metrics ───────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          {/* Node status legend */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <StatusItem color="#22C55E" label="Optimal"  sub="< 80% capacity" />
+            <StatusItem color="#EAB308" label="Degraded" sub="80–150% load" />
+            <StatusItem color="#EF4444" label="Critical" sub="> 150% / errors" />
+            <StatusItem color="#64748B" label="Offline"  sub="node is down" />
+          </div>
+
+          <Div />
+
+          {/* Packet flow legend */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <PacketItem color="#06B6D4" label="Normal"  sub="healthy requests" />
+            <PacketItem color="#F97316" label="Error"   sub="rejected / dropped" />
+            <PacketItem color="#EF4444" label="Attack"  sub="DDoS / surge" />
+          </div>
+
+          <Div />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <Metric icon={<RefreshCw size={10} />} label="RPS"
+              value={fmtRps(metrics.globalRPS)} color={rpsColor} />
+            <Metric icon={<Clock size={10} />} label="P99"
+              value={fmtMs(metrics.p99)} color={p99Color} />
+            <Metric icon={<AlertTriangle size={10} />} label="Errors"
+              value={fmtPct(metrics.errorRate)} color={errColor} />
+            <Metric
+              icon={<Layers3 size={10} />} label="Active"
+              value={`${activeNodeCount}/${totalNodeCount}`}
+              color="var(--text-dim)"
+            />
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Floating chaos panel — outside overflow:hidden bar div */}
+      <ChaosArea
+        isRunning={isRunning}
+        selectedNodeId={selectedNodeId}
+        selectedNodeName={selectedNodeName ?? null}
+        selectedNodeType={selectedNodeTypeId}
+        selectedNodeSimState={selectedNodeSimState}
+        injectChaos={injectChaos}
+      />
+    </>
   );
 }

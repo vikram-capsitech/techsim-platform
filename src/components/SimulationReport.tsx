@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
+import { aiApi } from '../api/client';
 
 export interface NodeMetricSummary {
   id: string;
@@ -53,21 +54,7 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
 
   const generateReport = async () => {
     try {
-      const token = localStorage.getItem('techsim_token');
-      const groqKey = localStorage.getItem('groq_api_key') ?? '';
-      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
-      const res = await fetch('http://localhost:5000/api/ai/simulation-report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
-          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
-        },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error('AI service unavailable');
-      const result = await res.json();
+      const result = await aiApi.simulationReport(data);
       setReport(result.report ?? '');
     } catch {
       setError('Could not generate AI report. Showing raw metrics below.');
@@ -105,7 +92,7 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
         style={{
           width: '100%', maxWidth: 860,
           maxHeight: '90vh',
-          background: '#0D0D10',
+          background: 'var(--bg-primary)',
           border: '1px solid rgba(124,58,237,0.3)',
           borderRadius: 16,
           boxShadow: '0 32px 100px rgba(0,0,0,0.9)',
@@ -118,15 +105,15 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
         {/* Header */}
         <div style={{
           padding: '20px 24px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
           flexShrink: 0,
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#E2E8F0', letterSpacing: '-0.02em' }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
               📊 Architecture Simulation Report
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace" }}>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace" }}>
               {data.architectureName} · {formatDuration(data.duration)} simulated
             </p>
           </div>
@@ -137,9 +124,9 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
               onClick={onClose}
               style={{
                 width: 30, height: 30, borderRadius: 8,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: '#64748B', cursor: 'pointer', fontSize: 16,
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 16,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
@@ -151,8 +138,8 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
         {/* Quick-stats bar */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 1, background: 'rgba(255,255,255,0.04)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          gap: 1, background: 'var(--border-dim)',
+          borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}>
           <StatCard label="Peak RPS"      value={data.peakRPS.toLocaleString()} color="#06B6D4" />
@@ -195,13 +182,13 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
                       {['Component', 'Avg Load', 'Peak Load', 'Error Rate', 'Status', 'Assessment'].map(h => (
                         <th key={h} style={{
                           padding: '8px 10px', textAlign: 'left',
                           fontSize: 10, fontFamily: "'IBM Plex Mono', monospace",
                           fontWeight: 700, letterSpacing: '0.08em',
-                          textTransform: 'uppercase', color: '#475569',
+                          textTransform: 'uppercase', color: 'var(--text-secondary)',
                         }}>{h}</th>
                       ))}
                     </tr>
@@ -215,19 +202,19 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
                         node.peakLoad > 70 ? '🟡 Watch closely' : '✅ Healthy';
 
                       return (
-                        <tr key={node.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <tr key={node.id} style={{ borderBottom: '1px solid var(--border-dim)' }}>
                           <td style={{ padding: '9px 10px', color: '#C4B5FD', fontWeight: 500 }}>{node.name}</td>
-                          <td style={{ padding: '9px 10px', color: '#94A3B8' }}>{node.avgLoad}%</td>
-                          <td style={{ padding: '9px 10px', color: node.peakLoad > 80 ? '#EAB308' : '#94A3B8' }}>
+                          <td style={{ padding: '9px 10px', color: 'var(--text-secondary)' }}>{node.avgLoad}%</td>
+                          <td style={{ padding: '9px 10px', color: node.peakLoad > 80 ? '#EAB308' : 'var(--text-secondary)' }}>
                             {node.peakLoad}%
                           </td>
-                          <td style={{ padding: '9px 10px', color: errorPct > 1 ? '#EF4444' : '#94A3B8' }}>
+                          <td style={{ padding: '9px 10px', color: errorPct > 1 ? '#EF4444' : 'var(--text-secondary)' }}>
                             {errorPct.toFixed(2)}%
                           </td>
                           <td style={{ padding: '9px 10px' }}>
                             <StatusBadge status={node.finalStatus} />
                           </td>
-                          <td style={{ padding: '9px 10px', fontSize: 12, color: '#64748B' }}>{assessment}</td>
+                          <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--text-secondary)' }}>{assessment}</td>
                         </tr>
                       );
                     })}
@@ -261,7 +248,7 @@ export function SimulationReport({ data, onClose }: SimulationReportProps) {
                         t={event.timeSeconds}s
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: 14, fontSize: 12, color: '#64748B' }}>
+                    <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--text-secondary)' }}>
                       <span>{event.impactDescription}</span>
                       {event.recoveryTime > 0 && <span>Recovery: {event.recoveryTime}s</span>}
                       <span style={{ color: event.recovered ? '#22C55E' : '#EF4444', fontWeight: 600 }}>
@@ -287,7 +274,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       <div style={{ fontSize: 22, fontWeight: 700, color, letterSpacing: '-0.02em', lineHeight: 1 }}>
         {value}
       </div>
-      <div style={{ fontSize: 10.5, fontFamily: "'IBM Plex Mono', monospace", color: '#475569', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <div style={{ fontSize: 10.5, fontFamily: "'IBM Plex Mono', monospace", color: 'var(--text-secondary)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         {label}
       </div>
     </div>
@@ -313,9 +300,9 @@ function ExportBtn({ onClick, children }: { onClick: () => void; children: React
       onClick={onClick}
       style={{
         padding: '6px 12px', borderRadius: 7,
-        background: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.09)',
-        color: '#94A3B8', fontSize: 12,
+        background: 'var(--bg-tertiary)',
+        border: '1px solid var(--border)',
+        color: 'var(--text-secondary)', fontSize: 12,
         fontFamily: "'IBM Plex Mono', monospace",
         cursor: 'pointer', transition: 'all 0.12s',
       }}
@@ -325,9 +312,9 @@ function ExportBtn({ onClick, children }: { onClick: () => void; children: React
         e.currentTarget.style.color = '#A78BFA';
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)';
-        e.currentTarget.style.color = '#94A3B8';
+        e.currentTarget.style.background = 'var(--bg-tertiary)';
+        e.currentTarget.style.borderColor = 'var(--border)';
+        e.currentTarget.style.color = 'var(--text-secondary)';
       }}
     >
       {children}
@@ -366,10 +353,10 @@ function LoadingState({ nodeCount, eventCount }: { nodeCount: number; eventCount
         borderRadius: '50%',
         animation: 'spin 1s linear infinite',
       }} />
-      <p style={{ margin: '0 0 6px', fontSize: 14, color: '#94A3B8' }}>
+      <p style={{ margin: '0 0 6px', fontSize: 14, color: 'var(--text-secondary)' }}>
         Analyzing your architecture…
       </p>
-      <p style={{ margin: 0, fontSize: 12, color: '#475569', fontFamily: "'IBM Plex Mono', monospace" }}>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', fontFamily: "'IBM Plex Mono', monospace" }}>
         Reviewing {nodeCount} components · {eventCount} chaos events
       </p>
     </div>
@@ -391,17 +378,17 @@ function MarkdownReport({ content }: { content: string }) {
           </h3>
         ),
         p: ({ children }) => (
-          <p style={{ margin: '0 0 12px', fontSize: 13.5, color: '#94A3B8', lineHeight: 1.65 }}>
+          <p style={{ margin: '0 0 12px', fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
             {children}
           </p>
         ),
         ul: ({ children }) => (
-          <ul style={{ margin: '0 0 12px', paddingLeft: 18, color: '#94A3B8', fontSize: 13.5, lineHeight: 1.65 }}>
+          <ul style={{ margin: '0 0 12px', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.65 }}>
             {children}
           </ul>
         ),
         ol: ({ children }) => (
-          <ol style={{ margin: '0 0 12px', paddingLeft: 18, color: '#94A3B8', fontSize: 13.5, lineHeight: 1.65 }}>
+          <ol style={{ margin: '0 0 12px', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.65 }}>
             {children}
           </ol>
         ),
@@ -409,7 +396,7 @@ function MarkdownReport({ content }: { content: string }) {
           <li style={{ marginBottom: 5 }}>{children}</li>
         ),
         strong: ({ children }) => (
-          <strong style={{ color: '#CBD5E1', fontWeight: 600 }}>{children}</strong>
+          <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{children}</strong>
         ),
         code: ({ children }) => (
           <code style={{

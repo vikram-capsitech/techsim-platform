@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { feedbackApi } from '../api/client';
 
 type FeedbackType = 'bug' | 'feature' | 'improvement' | 'other';
 type Priority = 'low' | 'medium' | 'high';
@@ -81,19 +82,16 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch('http://localhost:5000/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type, title: title.trim(), description: description.trim(),
-          email: email.trim() || undefined,
-          priority,
-          page: window.location.pathname,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString(),
-        }),
+      await feedbackApi.submit({
+        type,
+        title: title.trim(),
+        description: description.trim(),
+        email: email.trim() || undefined,
+        priority,
+        page: window.location.pathname,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
       });
-      if (!res.ok) throw new Error('Server error');
       setSubmitted(true);
     } catch {
       setError('Could not submit feedback. Please try again.');
@@ -366,19 +364,16 @@ export function FeedbackSection() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch('http://localhost:5000/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type, title: title.trim(), description: description.trim(),
-          email: email.trim() || undefined,
-          priority,
-          page: window.location.pathname,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString(),
-        }),
+      await feedbackApi.submit({
+        type,
+        title: title.trim(),
+        description: description.trim(),
+        email: email.trim() || undefined,
+        priority,
+        page: window.location.pathname,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
       });
-      if (!res.ok) throw new Error('Server error');
       setSubmitted(true);
       setTitle('');
       setDescription('');

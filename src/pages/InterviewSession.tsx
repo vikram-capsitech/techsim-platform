@@ -7,6 +7,7 @@ import { Sidebar } from '../components/Sidebar';
 import { ArchitectureScoreCard } from '../components/ArchitectureScoreCard';
 import { useSimulation } from '../simulation/useSimulation';
 import { useTheme } from '../context/ThemeContext';
+import { aiApi } from '../api/client';
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy:   '#22C55E',
@@ -82,28 +83,19 @@ export function InterviewSession() {
     setChatLoading(true);
 
     try {
-      const token = localStorage.getItem('techsim_token');
-      const API = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:5000';
-      const res = await fetch(`${API}/api/ai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const nodeTypes = topology.nodes.map(n => (n.data as { nodeTypeId?: string }).nodeTypeId ?? '');
+      const data = await aiApi.chat({
+        message: userText,
+        architectureContext: {
+          nodeCount: topology.nodes.length,
+          components: topology.nodes.map(n => ({ name: (n.data as { label?: string }).label ?? 'node' })),
+          hasLoadBalancer: nodeTypes.includes('load-balancer'),
+          hasCache: nodeTypes.includes('redis'),
+          hasQueue: nodeTypes.includes('kafka') || nodeTypes.includes('rabbitmq') || nodeTypes.includes('sqs') || nodeTypes.includes('event-bus'),
+          hasMonitoring: nodeTypes.includes('prometheus') || nodeTypes.includes('grafana') || nodeTypes.includes('datadog'),
         },
-        body: JSON.stringify({
-          message: userText,
-          architectureContext: {
-            nodeCount: topology.nodes.length,
-            components: topology.nodes.map(n => ({ name: (n.data as { label?: string }).label ?? 'node' })),
-          },
-          conversationHistory: chatMsgs.map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text })),
-        }),
+        conversationHistory: chatMsgs.map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text })),
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { detail?: string };
-        throw new Error(body.detail ?? `HTTP ${res.status}`);
-      }
-      const data = await res.json() as { response: string };
       setChatMsgs(prev => [...prev, { role: 'ai', text: data.response }]);
     } catch (err) {
       setChatMsgs(prev => [...prev, { role: 'ai', text: `Error: ${(err as Error).message}` }]);
