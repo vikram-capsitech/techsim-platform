@@ -1,0 +1,630 @@
+{
+  "_metadata": {
+    "task": "Task 3 — Preset Architecture Scenarios",
+    "scenarioCount": 20,
+    "note": "These are learning guides and interview models, not authoritative snapshots of each company's current internal production architecture. Publicly documented patterns are used where available; implementation details can change.",
+    "formatVersion": "1.0.0"
+  },
+  "scenarios": [
+    {
+      "id": "netflix",
+      "title": "Netflix Video Streaming",
+      "difficulty": "Advanced",
+      "domain": "Media",
+      "learningObjectives": [
+        "Understand why control-plane APIs and video delivery paths should be separated",
+        "Learn adaptive-bitrate streaming and edge caching",
+        "Reason about multi-region resilience for a global media platform"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why deliver video through edge caches instead of application servers",
+          "reason": "Video segments are large and repeatedly requested. ISP-local and edge caches reduce origin load, transit distance, and buffering risk."
+        },
+        {
+          "decision": "Why store multiple encoded renditions of the same title",
+          "reason": "Clients can switch bitrate as network conditions change rather than waiting for a single oversized stream."
+        },
+        {
+          "decision": "Why isolate playback metadata from playable media bytes",
+          "reason": "Metadata APIs need personalization and rapid iteration; media delivery needs efficient cacheable transfer."
+        }
+      ],
+      "interestingFacts": [
+        "Netflix Open Connect localizes traffic through embedded appliances and interconnection with ISPs.",
+        "Netflix clients monitor network conditions and dynamically choose bitrate and CDN server during playback.",
+        "Treat this guide as a learning model: production internals evolve continuously."
+      ],
+      "commonInterviewQuestion": "How would you design a global streaming platform that starts playback quickly and degrades gracefully during regional or CDN failures?"
+    },
+    {
+      "id": "uber",
+      "title": "Uber Ride-Hailing Dispatch",
+      "difficulty": "Advanced",
+      "domain": "Mobility",
+      "learningObjectives": [
+        "Model real-time driver location updates",
+        "Design a nearby-driver search path with bounded latency",
+        "Handle trip state, payments, and notifications as separate reliability domains"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why separate the high-volume location stream from the transactional trip database",
+          "reason": "Location updates are frequent, ephemeral, and geo-indexed; trip state needs durable state transitions and auditability."
+        },
+        {
+          "decision": "Why partition by geography",
+          "reason": "Most matching queries are local. Geographic partitioning limits fan-out and lets overloaded cities scale independently."
+        },
+        {
+          "decision": "Why use events after trip-state changes",
+          "reason": "Notifications, analytics, pricing, and fraud systems can react asynchronously without delaying the core transition."
+        }
+      ],
+      "interestingFacts": [
+        "A dispatch platform must distinguish current position from durable trip history.",
+        "Driver matching is a latency-sensitive approximation problem, not only a database lookup.",
+        "Idempotent state transitions matter because mobile networks retry requests."
+      ],
+      "commonInterviewQuestion": "Design Uber's driver-matching system for a stadium exit where demand increases sharply within one small area."
+    },
+    {
+      "id": "whatsapp",
+      "title": "WhatsApp Messaging",
+      "difficulty": "Advanced",
+      "domain": "Communication",
+      "learningObjectives": [
+        "Design durable message handoff for intermittently connected clients",
+        "Reason about ordering, delivery receipts, and idempotency",
+        "Separate message transport from media storage"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why assign conversation-aware routing or sequence metadata",
+          "reason": "Users expect messages in a chat to appear in a sensible order even when retries and reconnects occur."
+        },
+        {
+          "decision": "Why store media in object storage and send references",
+          "reason": "Large media files should not block the low-latency text-message path."
+        },
+        {
+          "decision": "Why support offline delivery queues",
+          "reason": "Recipients may be disconnected for hours; durable handoff is different from a live WebSocket connection."
+        }
+      ],
+      "interestingFacts": [
+        "Messaging delivery semantics are usually discussed as accepted, delivered, and read rather than one vague 'sent' state.",
+        "End-to-end encryption changes what servers can inspect and search.",
+        "Presence updates should be treated as lossy and lower priority than durable messages."
+      ],
+      "commonInterviewQuestion": "How would you design one-to-one and group messaging with offline delivery, ordering, and read receipts?"
+    },
+    {
+      "id": "twitter_x",
+      "title": "Twitter/X Home Timeline",
+      "difficulty": "Advanced",
+      "domain": "Social",
+      "learningObjectives": [
+        "Compare fan-out-on-write and fan-out-on-read",
+        "Design a timeline cache for high read volume",
+        "Handle celebrity accounts and ranking as special cases"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why precompute timelines for many ordinary users",
+          "reason": "Reading the home feed becomes a fast cache lookup instead of merging thousands of accounts on every refresh."
+        },
+        {
+          "decision": "Why avoid blindly fan-out-writing celebrity posts to every follower",
+          "reason": "A single post can trigger excessive writes. A hybrid approach merges high-fan-out authors at read time."
+        },
+        {
+          "decision": "Why keep ranking separate from raw post storage",
+          "reason": "Ranking features and experiments evolve faster than the durable post model."
+        }
+      ],
+      "interestingFacts": [
+        "Timeline design is a workload trade-off between write amplification and read latency.",
+        "A hybrid model is often stronger than choosing only push or pull.",
+        "Cache invalidation and backfill behavior are core design questions."
+      ],
+      "commonInterviewQuestion": "Design a home timeline that remains fast when an account with hundreds of millions of followers posts."
+    },
+    {
+      "id": "amazon",
+      "title": "Amazon E-Commerce Platform",
+      "difficulty": "Advanced",
+      "domain": "Commerce",
+      "learningObjectives": [
+        "Separate catalog browsing from checkout correctness",
+        "Design inventory and order workflows using explicit state transitions",
+        "Use asynchronous processing without double-charging customers"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why use different stores for product search and order truth",
+          "reason": "Catalog search needs denormalized retrieval and filtering; orders need transactional correctness and auditability."
+        },
+        {
+          "decision": "Why reserve inventory rather than decrementing casually",
+          "reason": "Checkout spans time and services. Reservations make expiry and compensation explicit."
+        },
+        {
+          "decision": "Why make payment requests idempotent",
+          "reason": "Retries are unavoidable; a stable idempotency key prevents duplicate charges."
+        }
+      ],
+      "interestingFacts": [
+        "Commerce systems mix read-heavy catalog traffic with correctness-sensitive checkout workflows.",
+        "A cart is not an order and should not be treated as durable inventory ownership.",
+        "Cell-based isolation can limit the blast radius of failures in very large platforms."
+      ],
+      "commonInterviewQuestion": "How would you design flash-sale checkout without overselling inventory or overwhelming the database?"
+    },
+    {
+      "id": "airbnb",
+      "title": "Airbnb Booking Marketplace",
+      "difficulty": "Advanced",
+      "domain": "Marketplace",
+      "learningObjectives": [
+        "Model availability calendars and search indexes",
+        "Prevent double booking under concurrency",
+        "Coordinate payment, reservation, and notification workflows"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why maintain a search index separate from booking truth",
+          "reason": "Search needs geo, filters, price ranges, and ranking. The reservation database must remain authoritative."
+        },
+        {
+          "decision": "Why lock or atomically reserve a listing-date range during checkout",
+          "reason": "Two guests may attempt the same dates simultaneously; the system needs a clear winner."
+        },
+        {
+          "decision": "Why recompute price at booking confirmation",
+          "reason": "Fees, rules, and availability may have changed since the search result was generated."
+        }
+      ],
+      "interestingFacts": [
+        "Marketplace search results are snapshots, not guarantees.",
+        "Booking workflows benefit from saga-style compensation when payment or confirmation fails.",
+        "Fraud and trust signals influence both search and checkout paths."
+      ],
+      "commonInterviewQuestion": "Design Airbnb booking so two users cannot confirm the same property for overlapping dates."
+    },
+    {
+      "id": "stripe",
+      "title": "Stripe Payment Processing",
+      "difficulty": "Advanced",
+      "domain": "Fintech",
+      "learningObjectives": [
+        "Design idempotent payment APIs",
+        "Separate synchronous authorization from asynchronous settlement events",
+        "Build auditability and webhook reliability"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why require idempotency keys for payment creation",
+          "reason": "Clients retry after timeouts; duplicate network requests must not create duplicate financial operations."
+        },
+        {
+          "decision": "Why use a ledger-like append history",
+          "reason": "Balances and disputes require traceability. Mutating only the latest state hides how the system arrived there."
+        },
+        {
+          "decision": "Why retry webhooks with signatures",
+          "reason": "Merchant endpoints fail temporarily; retries plus verification provide reliable and secure notification."
+        }
+      ],
+      "interestingFacts": [
+        "Payment systems should represent states such as pending, authorized, captured, failed, refunded, and disputed explicitly.",
+        "Exactly-once delivery across networks is usually approximated with idempotency and deduplication.",
+        "Security scope is reduced by tokenizing sensitive payment details."
+      ],
+      "commonInterviewQuestion": "Design a payment API that remains safe when a client times out after the provider accepted the charge."
+    },
+    {
+      "id": "instagram",
+      "title": "Instagram Photo Feed",
+      "difficulty": "Advanced",
+      "domain": "Social Media",
+      "learningObjectives": [
+        "Separate media upload from feed metadata",
+        "Design follower-feed generation and ranking",
+        "Use object storage and CDN delivery efficiently"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why upload media directly to object storage using a controlled URL",
+          "reason": "Large payloads bypass application servers while permissions and metadata remain governed."
+        },
+        {
+          "decision": "Why generate multiple media renditions",
+          "reason": "Mobile devices and network conditions differ; serving the appropriate size lowers latency and bandwidth."
+        },
+        {
+          "decision": "Why use hybrid feed generation",
+          "reason": "Precomputation accelerates normal reads, while high-fan-out accounts and ranking may require read-time work."
+        }
+      ],
+      "interestingFacts": [
+        "Media bytes and social metadata have different storage and caching requirements.",
+        "The upload pipeline can process thumbnails, moderation, and metadata asynchronously.",
+        "Feed freshness is a product decision as well as a consistency decision."
+      ],
+      "commonInterviewQuestion": "How would you design an Instagram feed and media pipeline for users with very different follower counts?"
+    },
+    {
+      "id": "youtube",
+      "title": "YouTube Video Platform",
+      "difficulty": "Advanced",
+      "domain": "Media",
+      "learningObjectives": [
+        "Build an asynchronous upload and transcoding pipeline",
+        "Serve global video through edge caching",
+        "Design metadata search, recommendations, and view counters separately"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why transcode uploads asynchronously",
+          "reason": "Video encoding is expensive and produces many renditions; it should not block the upload request."
+        },
+        {
+          "decision": "Why use chunked and resumable upload",
+          "reason": "Large uploads frequently lose connectivity. Restarting from zero creates poor user experience and waste."
+        },
+        {
+          "decision": "Why aggregate view counts asynchronously",
+          "reason": "The watch path should not synchronously contend on one hot counter for popular videos."
+        }
+      ],
+      "interestingFacts": [
+        "Processing and delivery are different planes: upload jobs transform content, while CDN nodes serve segments.",
+        "A video may become playable at lower quality before every rendition finishes.",
+        "Search indexing is eventually consistent with metadata changes."
+      ],
+      "commonInterviewQuestion": "Design YouTube upload, transcoding, and playback for a video that suddenly becomes viral."
+    },
+    {
+      "id": "tiktok",
+      "title": "TikTok Short-Video Feed",
+      "difficulty": "Advanced",
+      "domain": "Social Media",
+      "learningObjectives": [
+        "Design low-latency personalized feed retrieval",
+        "Preload short media efficiently",
+        "Capture engagement events for ranking feedback loops"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why prefetch the next few clips",
+          "reason": "Short-form playback creates a narrow time budget; buffering the next likely videos improves continuity."
+        },
+        {
+          "decision": "Why separate candidate generation from ranking",
+          "reason": "A first stage narrows millions of videos; a later stage scores a manageable set using richer features."
+        },
+        {
+          "decision": "Why stream engagement events asynchronously",
+          "reason": "Watch time, skips, likes, and shares feed analytics and models without slowing playback."
+        }
+      ],
+      "interestingFacts": [
+        "Short-video systems optimize for time-to-first-frame and continuous playback.",
+        "Recommendation freshness competes with cacheability.",
+        "Safety review and moderation are first-class parts of the publishing pipeline."
+      ],
+      "commonInterviewQuestion": "How would you design a personalized short-video feed that starts instantly and learns from user behavior?"
+    },
+    {
+      "id": "slack",
+      "title": "Slack Workspace Messaging",
+      "difficulty": "Advanced",
+      "domain": "Collaboration",
+      "learningObjectives": [
+        "Design channel history and real-time updates",
+        "Support search without overloading the source database",
+        "Handle offline clients and workspace isolation"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why persist channel messages before broadcasting",
+          "reason": "A WebSocket broadcast is transient; durable history is the source for reconnect and search indexing."
+        },
+        {
+          "decision": "Why isolate workspaces logically and operationally",
+          "reason": "Tenant boundaries shape authorization, quotas, and blast-radius controls."
+        },
+        {
+          "decision": "Why index messages asynchronously",
+          "reason": "Search should not make the message-send path depend on the search cluster."
+        }
+      ],
+      "interestingFacts": [
+        "Collaboration platforms combine durable logs with ephemeral presence and typing indicators.",
+        "Clients need cursor-based synchronization after reconnect.",
+        "Permissions must be applied consistently to search as well as direct history reads."
+      ],
+      "commonInterviewQuestion": "Design Slack channels, direct messages, search, and reconnect behavior for a large enterprise workspace."
+    },
+    {
+      "id": "discord",
+      "title": "Discord Community Chat",
+      "difficulty": "Advanced",
+      "domain": "Communication",
+      "learningObjectives": [
+        "Scale real-time messaging across many servers and channels",
+        "Model hot communities separately from ordinary ones",
+        "Design message history and gateway sessions"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why shard gateway connections and channel traffic",
+          "reason": "Persistent connections and popular communities create uneven load that cannot be handled by one gateway."
+        },
+        {
+          "decision": "Why keep message history durable but presence ephemeral",
+          "reason": "Messages must survive reconnects; presence can tolerate loss and refresh."
+        },
+        {
+          "decision": "Why monitor partition hotspots",
+          "reason": "One highly active server can dominate a partition even if average traffic looks safe."
+        }
+      ],
+      "interestingFacts": [
+        "Community chat systems often have highly skewed traffic.",
+        "Backpressure is essential when clients or downstream consumers are slow.",
+        "Message IDs can help ordering, pagination, and deduplication."
+      ],
+      "commonInterviewQuestion": "How would you design Discord for one community that suddenly becomes much hotter than all others?"
+    },
+    {
+      "id": "zoom",
+      "title": "Zoom Video Conferencing",
+      "difficulty": "Advanced",
+      "domain": "Communication",
+      "learningObjectives": [
+        "Differentiate signaling from media transport",
+        "Reason about latency, regional media relays, and degraded modes",
+        "Scale meeting state and recording workflows separately"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why separate signaling from the media plane",
+          "reason": "Joining, permissions, and participant state are control concerns; audio/video packets need low-latency transport."
+        },
+        {
+          "decision": "Why place media relays near participants",
+          "reason": "Interactive communication is sensitive to round-trip latency and packet loss."
+        },
+        {
+          "decision": "Why process recordings asynchronously",
+          "reason": "Recording upload, composition, and transcription are expensive post-meeting workflows."
+        }
+      ],
+      "interestingFacts": [
+        "Interactive media systems optimize jitter, packet loss, and latency rather than only HTTP request time.",
+        "A meeting can degrade video quality while preserving audio.",
+        "Regional failover requires careful handling of live session state."
+      ],
+      "commonInterviewQuestion": "Design a video-conferencing platform that preserves usable audio during network degradation."
+    },
+    {
+      "id": "linkedin",
+      "title": "LinkedIn Professional Network Feed",
+      "difficulty": "Advanced",
+      "domain": "Social",
+      "learningObjectives": [
+        "Model a relationship graph and feed ranking",
+        "Build search and recommendation indexes",
+        "Separate write events from derived projections"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why maintain graph-aware features",
+          "reason": "Second-degree connections, mutual relationships, and recommendations depend on relationship traversal."
+        },
+        {
+          "decision": "Why publish profile changes as events",
+          "reason": "Search, feed, notifications, and recommendations can update independently."
+        },
+        {
+          "decision": "Why apply hybrid feed generation",
+          "reason": "Connection graphs and high-fan-out company pages create different cost profiles."
+        }
+      ],
+      "interestingFacts": [
+        "Professional-network systems combine graph, search, feed, and messaging workloads.",
+        "Derived indexes should be rebuildable from durable sources.",
+        "Privacy settings must filter every projection, not only profile pages."
+      ],
+      "commonInterviewQuestion": "How would you design LinkedIn's people-you-may-know feature and keep it privacy-safe?"
+    },
+    {
+      "id": "spotify",
+      "title": "Spotify Music Streaming",
+      "difficulty": "Advanced",
+      "domain": "Media",
+      "learningObjectives": [
+        "Separate audio delivery from recommendation services",
+        "Design playlist and library consistency",
+        "Use edge caching and asynchronous analytics"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why cache audio segments at the edge",
+          "reason": "Audio is immutable enough to cache aggressively and should not traverse application services repeatedly."
+        },
+        {
+          "decision": "Why model playlist updates carefully",
+          "reason": "Concurrent edits, ordering, and offline clients require version-aware synchronization."
+        },
+        {
+          "decision": "Why stream listening events asynchronously",
+          "reason": "Recommendations, royalty analytics, and product metrics need events but playback should stay responsive."
+        }
+      ],
+      "interestingFacts": [
+        "Audio delivery and recommendation ranking have different scaling characteristics.",
+        "Offline playback adds entitlement, expiry, and synchronization questions.",
+        "Platform tooling matters when many backend services evolve independently."
+      ],
+      "commonInterviewQuestion": "Design Spotify playback, playlists, and personalized recommendations for global users."
+    },
+    {
+      "id": "github",
+      "title": "GitHub Code Hosting",
+      "difficulty": "Advanced",
+      "domain": "Developer Tools",
+      "learningObjectives": [
+        "Separate Git object storage from web metadata",
+        "Design repository events and background jobs",
+        "Handle database failover without corrupting writes"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why separate Git objects from issue and permission metadata",
+          "reason": "Repository blobs and commits have content-addressable behavior; product metadata needs transactional queries."
+        },
+        {
+          "decision": "Why run CI hooks, indexing, and notifications asynchronously",
+          "reason": "Repository writes should finish without waiting for every integration."
+        },
+        {
+          "decision": "Why use careful failover controls for database primaries",
+          "reason": "Incorrect promotion during replication problems can create split-brain risk and data divergence."
+        }
+      ],
+      "interestingFacts": [
+        "Content-addressed objects naturally deduplicate identical content.",
+        "Repository events fan out to webhooks, indexing, notifications, and automation.",
+        "Operational safeguards around primary promotion are as important as replication itself."
+      ],
+      "commonInterviewQuestion": "Design GitHub repository hosting, webhooks, and metadata storage for large organizations."
+    },
+    {
+      "id": "dropbox",
+      "title": "Dropbox File Synchronization",
+      "difficulty": "Advanced",
+      "domain": "Storage",
+      "learningObjectives": [
+        "Design chunked uploads and content deduplication",
+        "Synchronize file metadata across devices",
+        "Handle conflicts and offline edits"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why upload file chunks rather than whole files",
+          "reason": "Chunking supports resumable transfer, deduplication, and partial re-upload after edits."
+        },
+        {
+          "decision": "Why keep metadata separate from blob content",
+          "reason": "Folder structure, versions, sharing, and permissions change independently from stored bytes."
+        },
+        {
+          "decision": "Why track versions or revisions",
+          "reason": "Offline devices may edit the same file; conflicts need deterministic detection and user-visible resolution."
+        }
+      ],
+      "interestingFacts": [
+        "File synchronization is a metadata-coordination problem as much as a storage problem.",
+        "Content hashes can reduce repeated uploads.",
+        "Deletion often needs tombstones so offline devices learn that an item was removed."
+      ],
+      "commonInterviewQuestion": "Design Dropbox synchronization for large files, offline edits, and cross-device conflict resolution."
+    },
+    {
+      "id": "google_search",
+      "title": "Google Search Engine",
+      "difficulty": "Expert",
+      "domain": "Search",
+      "learningObjectives": [
+        "Understand crawl, index, and query-serving separation",
+        "Reason about inverted indexes and ranking stages",
+        "Build fault-tolerant distributed query fan-out"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why build an inverted index",
+          "reason": "The engine needs to find documents by terms quickly rather than scan every page for each query."
+        },
+        {
+          "decision": "Why separate offline indexing from online query serving",
+          "reason": "Crawling and ranking pipelines are compute-heavy; query serving needs low latency and predictable availability."
+        },
+        {
+          "decision": "Why use multiple ranking stages",
+          "reason": "Cheap retrieval narrows candidates before expensive scoring applies richer signals."
+        }
+      ],
+      "interestingFacts": [
+        "A search engine is a collection of pipelines, indexes, and query-serving systems rather than one database.",
+        "Freshness and quality compete with indexing cost.",
+        "Tail latency matters because one slow shard can delay the whole result page."
+      ],
+      "commonInterviewQuestion": "Design web search from crawler scheduling through query serving and ranking."
+    },
+    {
+      "id": "gmail",
+      "title": "Gmail Email Platform",
+      "difficulty": "Advanced",
+      "domain": "Communication",
+      "learningObjectives": [
+        "Design durable mailbox storage and thread views",
+        "Build search indexing and spam filtering pipelines",
+        "Handle send, receive, attachments, and retries"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why queue outbound delivery",
+          "reason": "Remote mail servers can be unavailable; retry schedules and bounce handling should not block the user request."
+        },
+        {
+          "decision": "Why store attachments separately from mailbox metadata",
+          "reason": "Large immutable objects and small mutable message state have different storage and caching needs."
+        },
+        {
+          "decision": "Why build search indexes asynchronously",
+          "reason": "Mailbox operations remain durable even if indexing is briefly delayed."
+        }
+      ],
+      "interestingFacts": [
+        "Email is a store-and-forward system designed for asynchronous delivery.",
+        "Threading is a derived presentation model based on message metadata.",
+        "Spam and abuse controls affect deliverability and resource protection."
+      ],
+      "commonInterviewQuestion": "Design Gmail send, inbox, search, attachments, threading, and spam-handling paths."
+    },
+    {
+      "id": "redis_system",
+      "title": "Redis as a System",
+      "difficulty": "Expert",
+      "domain": "Data Infrastructure",
+      "learningObjectives": [
+        "Reason about a low-latency in-memory server",
+        "Understand persistence, replication, and cluster partitioning",
+        "Identify hot keys, memory pressure, and command-level risks"
+      ],
+      "keyDecisions": [
+        {
+          "decision": "Why keep the primary data path in memory",
+          "reason": "Avoiding disk seeks enables very low command latency, but memory becomes a deliberate capacity limit."
+        },
+        {
+          "decision": "Why partition keys across slots or shards",
+          "reason": "One server has finite memory and CPU. Partitioning spreads data and request load."
+        },
+        {
+          "decision": "Why treat command complexity as part of API design",
+          "reason": "A single expensive operation over a large collection can block or degrade other requests."
+        }
+      ],
+      "interestingFacts": [
+        "Redis supports pipelining so clients can reduce round trips.",
+        "Redis Cluster uses a defined partitioning model for routing keys across nodes.",
+        "Latency investigation should separate server processing from network and operating-system effects."
+      ],
+      "commonInterviewQuestion": "How would you design a Redis-like cache with TTLs, eviction, replication, failover, and horizontal partitioning?"
+    }
+  ]
+}

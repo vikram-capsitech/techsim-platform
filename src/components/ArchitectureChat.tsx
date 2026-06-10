@@ -12,7 +12,7 @@ interface ArchitectureChatProps {
   onClose: () => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+const API_BASE = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?? 'http://localhost:5000';
 
 const SUGGESTED_QUESTIONS = [
   'How can I improve the scalability of this architecture?',
@@ -105,11 +105,15 @@ export function ArchitectureChat({ architectureContext, onClose }: ArchitectureC
           conversationHistory: history,
         }),
       });
-      if (!res.ok) throw new Error(`${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+        throw new Error(errBody.detail ?? errBody.error ?? `HTTP ${res.status}`);
+      }
       const data = await res.json() as { response: string };
       setMessages(prev => [...prev, { role: 'assistant', content: data.response, ts: Date.now() }]);
     } catch (err) {
-      setError('Failed to get a response. Check your AI key in Settings.');
+      const msg = (err as Error).message ?? '';
+      setError(msg || 'Failed to get a response. Check your AI key in Settings.');
     } finally {
       setLoading(false);
     }

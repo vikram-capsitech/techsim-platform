@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IDiagramVersion {
+  canvasJson: { nodes: any[]; edges: any[] };
+  savedAt: Date;
+  label: string;
+  nodeCount?: number;
+  edgeCount?: number;
+}
+
 export interface IDiagram extends Document {
   userId: mongoose.Types.ObjectId;
   title: string;
@@ -12,9 +20,21 @@ export interface IDiagram extends Document {
   isPublic: boolean;
   forkCount: number;
   tags: string[];
+  versions: IDiagramVersion[];
   createdAt: Date;
   updatedAt: Date;
 }
+
+const VersionSchema = new Schema({
+  canvasJson: {
+    nodes: { type: [Schema.Types.Mixed], default: [] },
+    edges: { type: [Schema.Types.Mixed], default: [] },
+  },
+  savedAt: { type: Date, default: Date.now },
+  label:   { type: String, default: '' },
+  nodeCount: { type: Number },
+  edgeCount: { type: Number }
+}, { _id: false });
 
 const DiagramSchema: Schema = new Schema(
   {
@@ -32,7 +52,8 @@ const DiagramSchema: Schema = new Schema(
     thumbnailUrl: { type: String, default: '' },
     isPublic: { type: Boolean, default: false },
     forkCount: { type: Number, default: 0 },
-    tags: { type: [String], default: [] }
+    tags: { type: [String], default: [] },
+    versions: { type: [VersionSchema], default: [] },
   },
   {
     timestamps: true

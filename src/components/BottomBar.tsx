@@ -278,6 +278,7 @@ export interface BottomBarProps {
   onTrafficChange: (v: number) => void;
   activeNodeCount: number;
   totalNodeCount: number;
+  onScoreClick?: () => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -290,6 +291,7 @@ export function BottomBar({
   speed, onSpeedChange,
   traffic, onTrafficChange,
   activeNodeCount, totalNodeCount,
+  onScoreClick,
 }: BottomBarProps) {
   const criticalCount = issues.filter(i => i.severity === 'critical' || i.severity === 'error').length;
   const warnCount    = issues.filter(i => i.severity === 'warning').length;
@@ -362,6 +364,24 @@ export function BottomBar({
           {isRunning ? <Square size={10} /> : <Play size={10} />}
           {isRunning ? 'STOP' : 'RUN'}
         </button>
+
+        {/* Score button */}
+        {onScoreClick && (
+          <button
+            onClick={onScoreClick}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '5px 10px', borderRadius: 7,
+              background: 'rgba(124,58,237,0.1)',
+              border: '1px solid rgba(124,58,237,0.3)',
+              color: '#A78BFA',
+              fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
+              cursor: 'pointer',
+            }}
+          >
+            📊 SCORE
+          </button>
+        )}
 
         <Div />
 

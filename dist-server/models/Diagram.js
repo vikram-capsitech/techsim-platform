@@ -34,6 +34,16 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
+const VersionSchema = new mongoose_1.Schema({
+    canvasJson: {
+        nodes: { type: [mongoose_1.Schema.Types.Mixed], default: [] },
+        edges: { type: [mongoose_1.Schema.Types.Mixed], default: [] },
+    },
+    savedAt: { type: Date, default: Date.now },
+    label: { type: String, default: '' },
+    nodeCount: { type: Number },
+    edgeCount: { type: Number }
+}, { _id: false });
 const DiagramSchema = new mongoose_1.Schema({
     userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     title: { type: String, required: true, trim: true },
@@ -49,7 +59,8 @@ const DiagramSchema = new mongoose_1.Schema({
     thumbnailUrl: { type: String, default: '' },
     isPublic: { type: Boolean, default: false },
     forkCount: { type: Number, default: 0 },
-    tags: { type: [String], default: [] }
+    tags: { type: [String], default: [] },
+    versions: { type: [VersionSchema], default: [] },
 }, {
     timestamps: true
 });

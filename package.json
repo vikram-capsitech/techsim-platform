@@ -9,6 +9,8 @@
     "dev:client": "vite",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "seed": "ts-node server/seed.ts",
+    "populate:content": "npx tsx server/populate-json.ts.bak",
+    "seed:content": "npx tsx server/seed-content.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -20,6 +22,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "html-to-image": "^1.11.13",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.17.0",
     "mongoose": "^9.6.3",

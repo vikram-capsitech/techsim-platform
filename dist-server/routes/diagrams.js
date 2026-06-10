@@ -91,12 +91,24 @@ router.put('/:id', async (req, res, next) => {
             return res.status(403).json({ error: 'Forbidden. Only the owner can modify this diagram.' });
         }
         const { title, module, canvasJson, thumbnailUrl, isPublic, tags } = req.body;
+        if (canvasJson !== undefined) {
+            const oldJson = diagram.canvasJson || { nodes: [], edges: [] };
+            diagram.versions.push({
+                canvasJson: oldJson,
+                savedAt: new Date(),
+                label: 'Auto-save',
+                nodeCount: oldJson.nodes?.length || 0,
+                edgeCount: oldJson.edges?.length || 0
+            });
+            if (diagram.versions.length > 10) {
+                diagram.versions = diagram.versions.slice(-10);
+            }
+            diagram.canvasJson = canvasJson;
+        }
         if (title !== undefined)
             diagram.title = title;
         if (module !== undefined)
             diagram.module = module;
-        if (canvasJson !== undefined)
-            diagram.canvasJson = canvasJson;
         if (thumbnailUrl !== undefined)
             diagram.thumbnailUrl = thumbnailUrl;
         if (isPublic !== undefined)
@@ -164,6 +176,50 @@ router.post('/:id/fork', async (req, res, next) => {
     }
     catch (error) {
         next(error);
+    }
+});
+// GET /api/diagrams/:id/versions — list saved versions (owner only)
+router.get('/:id/versions', async (req, res, next) => {
+    try {
+        const diagram = await Diagram_1.default.findById(req.params.id).select('userId versions');
+        if (!diagram)
+            return res.status(404).json({ error: 'Not found' });
+        if (diagram.userId.toString() !== req.user.userId)
+            return res.status(403).json({ error: 'Forbidden' });
+        res.json(diagram.versions ?? []);
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// POST /api/diagrams/:id/restore/:idx — restore a version by index
+router.post('/:id/restore/:idx', async (req, res, next) => {
+    try {
+        const diagram = await Diagram_1.default.findById(req.params.id);
+        if (!diagram)
+            return res.status(404).json({ error: 'Not found' });
+        if (diagram.userId.toString() !== req.user.userId)
+            return res.status(403).json({ error: 'Forbidden' });
+        const idx = parseInt(req.params.idx, 10);
+        const ver = diagram.versions?.[idx];
+        if (!ver)
+            return res.status(404).json({ error: 'Version not found' });
+        // Save current state as a version before restoring
+        const nodeCount = diagram.canvasJson.nodes?.length ?? 0;
+        const edgeCount = diagram.canvasJson.edges?.length ?? 0;
+        if (nodeCount > 0 || edgeCount > 0) {
+            const label = `${nodeCount} nodes, ${edgeCount} edges · ${new Date().toLocaleString()} (pre-restore)`;
+            diagram.versions = [
+                { canvasJson: diagram.canvasJson, savedAt: new Date(), label },
+                ...diagram.versions,
+            ].slice(0, 10);
+        }
+        diagram.canvasJson = ver.canvasJson;
+        await diagram.save();
+        res.json(diagram);
+    }
+    catch (err) {
+        next(err);
     }
 });
 // PUT /api/diagrams/:id/autosave

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { diagramApi, type DiagramSummary } from '../api/client';
+import { diagramApi, type DiagramSummary, type DiagramVersion } from '../api/client';
 
 function formatTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -46,15 +46,163 @@ function actionBtnStyle(bg: string, border?: string, color?: string): React.CSSP
   };
 }
 
+// ── Version History Modal ────────────────────────────────────────────────────
+function VersionHistoryModal({
+  diagramId,
+  diagramTitle,
+  onClose,
+  onRestored,
+}: {
+  diagramId: string;
+  diagramTitle: string;
+  onClose: () => void;
+  onRestored: () => void;
+}) {
+  const navigate = useNavigate();
+  const [versions, setVersions]     = useState<DiagramVersion[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [restoring, setRestoring]   = useState<number | null>(null);
+
+  useEffect(() => {
+    diagramApi.versions(diagramId)
+      .then(v => setVersions(v))
+      .catch(() => setVersions([]))
+      .finally(() => setLoading(false));
+  }, [diagramId]);
+
+  const handleRestore = async (idx: number) => {
+    if (!confirm(`Restore this version? Current state will be saved as a new version.`)) return;
+    setRestoring(idx);
+    try {
+      await diagramApi.restore(diagramId, idx);
+      onRestored();
+      onClose();
+      navigate(`/canvas?id=${diagramId}`);
+    } catch (err) {
+      alert((err as Error).message ?? 'Restore failed');
+    } finally {
+      setRestoring(null);
+    }
+  };
+
+  function diffLabel(ver: DiagramVersion, prev: DiagramVersion | null): string {
+    if (!prev) return '';
+    const dn = (ver.canvasJson.nodes?.length ?? 0) - (prev.canvasJson.nodes?.length ?? 0);
+    const de = (ver.canvasJson.edges?.length ?? 0) - (prev.canvasJson.edges?.length ?? 0);
+    const parts: string[] = [];
+    if (dn !== 0) parts.push(`${dn > 0 ? '+' : ''}${dn} nodes`);
+    if (de !== 0) parts.push(`${de > 0 ? '+' : ''}${de} edges`);
+    return parts.length > 0 ? parts.join(', ') : 'no topology change';
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 300 }}
+      />
+      {/* Modal */}
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%,-50%)',
+        zIndex: 301, width: 520, maxHeight: '80vh',
+        background: 'var(--sidebar-bg)', border: '1px solid var(--border)',
+        borderRadius: 14, display: 'flex', flexDirection: 'column',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Version History</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{diagramTitle}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', fontSize: 18, lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+          {loading && (
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: 13, fontFamily: "'IBM Plex Mono', monospace" }}>
+              Loading versions…
+            </div>
+          )}
+          {!loading && versions.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>📂</div>
+              <div style={{ fontSize: 13.5, color: 'var(--text)', fontWeight: 600, marginBottom: 6 }}>No version history yet</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+                Each time you save a diagram, the previous state is stored here. Save the diagram again after making changes to create a version.
+              </div>
+            </div>
+          )}
+          {!loading && versions.map((ver, i) => {
+            const nodeCount = ver.canvasJson.nodes?.length ?? 0;
+            const edgeCount = ver.canvasJson.edges?.length ?? 0;
+            const diff = diffLabel(ver, versions[i - 1] ?? null);
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 14px', borderRadius: 8, marginBottom: 6,
+                background: 'var(--card-bg)', border: '1px solid var(--border)',
+              }}>
+                {/* Version badge */}
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                  background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, color: 'var(--accent-bright)',
+                  fontFamily: "'IBM Plex Mono', monospace",
+                }}>
+                  v{versions.length - i}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
+                    {nodeCount} nodes · {edgeCount} edges
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                    {new Date(ver.savedAt).toLocaleString()}
+                    {diff && (
+                      <span style={{ marginLeft: 8, color: diff.includes('+') ? '#22C55E' : '#EF4444' }}>
+                        · {diff}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRestore(i)}
+                  disabled={restoring !== null}
+                  style={{
+                    padding: '5px 14px', borderRadius: 6, cursor: restoring !== null ? 'not-allowed' : 'pointer',
+                    fontSize: 12, fontWeight: 600, flexShrink: 0,
+                    background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)',
+                    color: 'var(--accent-bright)', opacity: restoring === i ? 0.5 : 1,
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  {restoring === i ? 'Restoring…' : 'Restore'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Diagram card ─────────────────────────────────────────────────────────────
 interface DiagramCardProps {
   diagram: DiagramSummary;
   onOpen: () => void;
   onDelete: () => void;
   onFork: () => void;
+  onHistory: () => void;
   deleting: boolean;
 }
 
-function DiagramCard({ diagram, onOpen, onDelete, onFork, deleting }: DiagramCardProps) {
+function DiagramCard({ diagram, onOpen, onDelete, onFork, onHistory, deleting }: DiagramCardProps) {
   const color = MODULE_COLORS[diagram.module] ?? '#7C3AED';
   const label = MODULE_LABELS[diagram.module] ?? diagram.module;
   const [hovered, setHovered] = useState(false);
@@ -161,6 +309,15 @@ function DiagramCard({ diagram, onOpen, onDelete, onFork, deleting }: DiagramCar
           Fork
         </button>
         <button
+          onClick={onHistory}
+          style={actionBtnStyle('transparent', 'var(--border)')}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.08)'; e.currentTarget.style.color = '#A78BFA'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text)'; }}
+          title="View version history"
+        >
+          History
+        </button>
+        <button
           onClick={onDelete}
           disabled={deleting}
           style={{ ...actionBtnStyle('transparent'), color: '#EF4444', marginLeft: 'auto', opacity: deleting ? 0.5 : 1 }}
@@ -199,6 +356,7 @@ export function MyArchitectures() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [historyDiagram, setHistoryDiagram] = useState<DiagramSummary | null>(null);
   const navigate = useNavigate();
 
   const loadDiagrams = useCallback(async () => {
@@ -372,10 +530,21 @@ export function MyArchitectures() {
               onOpen={() => navigate(`/canvas?id=${diagram._id}`)}
               onDelete={() => deleteDiagram(diagram._id)}
               onFork={() => forkDiagram(diagram._id)}
+              onHistory={() => setHistoryDiagram(diagram)}
               deleting={deletingIds.has(diagram._id)}
             />
           ))}
         </div>
+      )}
+
+      {/* Version History Modal */}
+      {historyDiagram && (
+        <VersionHistoryModal
+          diagramId={historyDiagram._id}
+          diagramTitle={historyDiagram.title || 'Untitled'}
+          onClose={() => setHistoryDiagram(null)}
+          onRestored={loadDiagrams}
+        />
       )}
     </div>
   );

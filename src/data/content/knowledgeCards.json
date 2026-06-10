@@ -1,0 +1,1898 @@
+{
+  "_metadata": {
+    "task": "Task 2 — Component Knowledge Cards",
+    "requestedCardCount": 50,
+    "deliveredCardCount": 51,
+    "note": "The supplied component list contains 51 named items. Every requested item is included. Throughput, latency, and cost values are indicative planning ranges, not provider guarantees. Validate current pricing and benchmark with the real workload before making capacity decisions.",
+    "formatVersion": "1.0.0"
+  },
+  "components": [
+    {
+      "componentId": "load_balancer",
+      "name": "Load Balancer",
+      "category": "Network",
+      "tagline": "Distributes traffic across healthy service instances",
+      "whatItDoes": "A load balancer accepts client connections and routes each request or connection to one of several backends. Layer 4 balancers make decisions using transport information, while Layer 7 balancers can route by host, path, headers, or cookies. Health checks and connection draining keep failed or terminating instances out of rotation.",
+      "whenToUse": [
+        "Horizontally scaling stateless APIs",
+        "Failing traffic away from unhealthy instances",
+        "Routing requests by hostname, path, region, or service version"
+      ],
+      "whenNotToUse": [
+        "As a substitute for database sharding",
+        "When a single local process is sufficient and high availability is not required"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Routes edge and API traffic across service capacity"
+        },
+        {
+          "company": "Shopify",
+          "useCase": "Uses load balancing as part of a horizontally scaled commerce platform"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "10K-1M+ requests/sec depending on appliance and payload",
+        "latency": "Typically sub-millisecond to a few milliseconds added hop latency",
+        "typicalCost": "Indicative managed-cloud starting cost: tens of USD/month plus usage"
+      },
+      "commonMistakes": [
+        "Using only shallow TCP checks for an application that is unhealthy at the HTTP layer",
+        "Keeping user session state only in local memory without stickiness or shared storage",
+        "Ignoring connection draining during deployments"
+      ],
+      "interviewTips": "Explain Layer 4 versus Layer 7, health checks, least-connections versus round-robin, TLS termination, sticky sessions, and why the database may still become the bottleneck."
+    },
+    {
+      "componentId": "api_gateway",
+      "name": "API Gateway",
+      "category": "Network",
+      "tagline": "Central entry point for API routing, policy enforcement, and governance",
+      "whatItDoes": "An API gateway sits in front of backend services and provides a stable client-facing API surface. It commonly handles routing, authentication integration, quotas, request validation, transformations, logging, and versioning. A gateway is a policy boundary, not a place to hide all business logic.",
+      "whenToUse": [
+        "Exposing multiple microservices behind one public endpoint",
+        "Applying authentication, quotas, and API analytics consistently",
+        "Supporting REST, HTTP, or WebSocket APIs for external consumers"
+      ],
+      "whenNotToUse": [
+        "Putting complex domain workflows into gateway scripts",
+        "Adding a gateway to a small internal service where a reverse proxy is enough"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Amazon Web Services",
+          "useCase": "API Gateway exposes REST, HTTP, and WebSocket APIs at scale"
+        },
+        {
+          "company": "Netflix",
+          "useCase": "Uses edge services to centralize cross-cutting concerns before internal services"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Provider quotas vary; design for burst and steady-state limits",
+        "latency": "Usually adds a few to tens of milliseconds depending on features",
+        "typicalCost": "Usually usage based; validate current provider pricing"
+      },
+      "commonMistakes": [
+        "Treating throttling targets as hard guarantees",
+        "Building a single oversized gateway configuration owned by nobody",
+        "Failing to propagate correlation IDs and client identity downstream"
+      ],
+      "interviewTips": "Differentiate an API gateway from a reverse proxy and load balancer. Discuss authentication, throttling, observability, request validation, and avoiding a gateway monolith."
+    },
+    {
+      "componentId": "cdn",
+      "name": "CDN",
+      "category": "Network",
+      "tagline": "Caches and serves content close to users at the network edge",
+      "whatItDoes": "A content delivery network places cache nodes near users so static files and cacheable responses travel a shorter network path. CDNs reduce origin load, improve latency, and absorb large traffic bursts. Modern CDNs can also terminate TLS, apply edge rules, and protect origins.",
+      "whenToUse": [
+        "Serving images, JavaScript, CSS, downloads, and video segments",
+        "Reducing global latency for cacheable content",
+        "Protecting origins from traffic spikes"
+      ],
+      "whenNotToUse": [
+        "Serving highly personalized responses without a deliberate cache-key strategy",
+        "Assuming cached data is instantly invalidated everywhere"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Open Connect localizes playable content near viewers inside ISP and interconnection networks"
+        },
+        {
+          "company": "Cloudflare",
+          "useCase": "Provides globally distributed edge caching and security services"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Designed for internet-scale delivery; capacity depends on provider and cache hit ratio",
+        "latency": "Often tens of milliseconds saved by avoiding distant origin trips",
+        "typicalCost": "Usage based by data transfer and requests"
+      },
+      "commonMistakes": [
+        "Caching private content under a shared key",
+        "Using very long TTLs without versioned asset URLs or purge strategy",
+        "Ignoring origin shielding and cache stampede protection"
+      ],
+      "interviewTips": "Discuss cache keys, TTLs, invalidation, hit ratio, origin shielding, signed URLs, and why video delivery differs from API response caching."
+    },
+    {
+      "componentId": "waf",
+      "name": "WAF",
+      "category": "Network",
+      "tagline": "Filters malicious HTTP requests before they reach applications",
+      "whatItDoes": "A web application firewall inspects HTTP traffic and applies managed or custom rules. It can block common attack patterns, suspicious bots, abusive IPs, and malformed requests. It complements secure coding; it cannot repair insecure authorization logic inside the application.",
+      "whenToUse": [
+        "Blocking common web exploit patterns",
+        "Applying bot controls and IP reputation checks",
+        "Adding virtual patches while application fixes are deployed"
+      ],
+      "whenNotToUse": [
+        "Replacing input validation and authorization checks",
+        "Protecting non-HTTP protocols without an appropriate network firewall"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Amazon Web Services",
+          "useCase": "AWS WAF integrates with edge and API services"
+        },
+        {
+          "company": "Cloudflare",
+          "useCase": "Provides managed WAF rules and bot controls at the edge"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Scales with edge or gateway service capacity",
+        "latency": "Usually low single-digit millisecond overhead for typical rule sets",
+        "typicalCost": "Usage based on requests and enabled rules"
+      },
+      "commonMistakes": [
+        "Enabling blocking mode before testing false positives",
+        "Using generic rules without application-specific allowlists and rate rules",
+        "Not monitoring rule matches after deployment"
+      ],
+      "interviewTips": "State that WAF is defense in depth. Describe managed rules, custom rules, false positives, logging, rate-based rules, and the limits of signature matching."
+    },
+    {
+      "componentId": "dns",
+      "name": "DNS",
+      "category": "Network",
+      "tagline": "Translates service names into routable endpoints",
+      "whatItDoes": "The Domain Name System maps human-friendly names to IP addresses or other records. Recursive resolvers cache answers based on TTL, while authoritative servers publish the source records. DNS is also used for traffic steering, failover, service discovery, and verification records.",
+      "whenToUse": [
+        "Mapping public domains to edge endpoints",
+        "Weighted, latency-based, or failover routing",
+        "Internal service discovery where DNS semantics are sufficient"
+      ],
+      "whenNotToUse": [
+        "Requiring instant global failover without respecting resolver caching",
+        "Storing rapidly changing application state in DNS"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Google",
+          "useCase": "Operates public DNS resolver infrastructure"
+        },
+        {
+          "company": "Amazon Web Services",
+          "useCase": "Route 53 supports DNS routing and health-check-based failover"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Authoritative services are designed for very high query volume",
+        "latency": "Cached lookups are often single-digit milliseconds; uncached resolution may be slower",
+        "typicalCost": "Usually low per-zone and per-query charges"
+      },
+      "commonMistakes": [
+        "Choosing a long TTL for a record that needs fast failover",
+        "Forgetting negative caching and resolver behavior",
+        "Creating a circular dependency where recovery tools depend on the failed DNS path"
+      ],
+      "interviewTips": "Cover recursive versus authoritative DNS, TTL trade-offs, A/AAAA/CNAME records, health checks, propagation myths, and why DNS failures can be system-wide."
+    },
+    {
+      "componentId": "reverse_proxy",
+      "name": "Reverse Proxy",
+      "category": "Network",
+      "tagline": "Receives client traffic and forwards it to internal servers",
+      "whatItDoes": "A reverse proxy hides backend topology behind a stable endpoint. It can terminate TLS, route requests, compress responses, add headers, cache selected content, and enforce simple policies. Unlike a forward proxy, it represents servers to clients rather than clients to external servers.",
+      "whenToUse": [
+        "TLS termination for web applications",
+        "Routing multiple applications behind one public endpoint",
+        "Adding compression, caching, or header normalization"
+      ],
+      "whenNotToUse": [
+        "Implementing complex authorization solely through proxy configuration",
+        "Assuming a single proxy instance is highly available"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "GitHub",
+          "useCase": "Uses proxy layers to front web application services"
+        },
+        {
+          "company": "Spotify",
+          "useCase": "Has publicly discussed load balancers and proxy systems at its perimeter"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Thousands to hundreds of thousands of requests/sec per tuned instance",
+        "latency": "Often sub-millisecond to a few milliseconds added overhead",
+        "typicalCost": "Open-source software cost is zero; infrastructure cost varies"
+      },
+      "commonMistakes": [
+        "Running only one proxy instance",
+        "Forwarding untrusted client headers without normalization",
+        "Missing timeout alignment between proxy and upstream"
+      ],
+      "interviewTips": "Contrast reverse proxy, load balancer, and API gateway. Mention TLS termination, upstream pools, buffering, timeouts, header trust, and high availability."
+    },
+    {
+      "componentId": "rate_limiter",
+      "name": "Rate Limiter",
+      "category": "Network",
+      "tagline": "Controls request volume to protect capacity and enforce fairness",
+      "whatItDoes": "A rate limiter decides whether a request should proceed based on a policy such as requests per second, concurrency, or cost units. Common algorithms include token bucket, leaky bucket, fixed window, and sliding window. Distributed limits require careful consistency and failure-mode choices.",
+      "whenToUse": [
+        "Protecting APIs from overload",
+        "Enforcing tenant quotas and plan limits",
+        "Preventing brute-force login attempts and abusive scraping"
+      ],
+      "whenNotToUse": [
+        "Using one global limit that penalizes every tenant equally",
+        "Relying on rate limiting as the only DDoS control"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "GitHub",
+          "useCase": "Publishes API rate limits for client fairness"
+        },
+        {
+          "company": "Amazon Web Services",
+          "useCase": "API Gateway supports throttling and quotas"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Often 10K-1M decisions/sec depending on local or distributed implementation",
+        "latency": "Target sub-millisecond for local or Redis-backed checks",
+        "typicalCost": "Usually embedded in gateway or backed by a small cache cluster"
+      },
+      "commonMistakes": [
+        "Not returning retry guidance such as Retry-After",
+        "Ignoring burst capacity and only configuring average rate",
+        "Failing open or closed without an explicit policy when the limiter store is unavailable"
+      ],
+      "interviewTips": "Explain token bucket, per-user versus global limits, distributed counters, hot keys, fail-open versus fail-closed behavior, and 429 responses."
+    },
+    {
+      "componentId": "microservice",
+      "name": "Microservice",
+      "category": "Compute",
+      "tagline": "Small independently deployable service around a bounded capability",
+      "whatItDoes": "A microservice owns a focused business capability and exposes a contract through an API or events. The architectural benefit is independent evolution and scaling, but the cost is distributed failure modes, operational overhead, and data consistency complexity. A service boundary should follow ownership and domain behavior rather than arbitrary code size.",
+      "whenToUse": [
+        "Separating domains with different ownership or scaling needs",
+        "Allowing independent release cycles",
+        "Isolating workloads with distinct reliability requirements"
+      ],
+      "whenNotToUse": [
+        "Splitting a small product into dozens of services prematurely",
+        "Sharing one database schema across services while pretending they are independent"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Uses a large service-oriented architecture for streaming and product capabilities"
+        },
+        {
+          "company": "Spotify",
+          "useCase": "Operates many backend components supported by internal platform tooling"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Depends on implementation and downstreams",
+        "latency": "Each network hop may add milliseconds and failure risk",
+        "typicalCost": "Operational cost grows with service count and platform maturity needs"
+      },
+      "commonMistakes": [
+        "Nano-services that add hops without autonomy",
+        "Synchronous call chains with no timeout budgets",
+        "Unclear data ownership"
+      ],
+      "interviewTips": "Discuss bounded contexts, team ownership, data ownership, service contracts, observability, retries, and why a modular monolith is often the correct starting point."
+    },
+    {
+      "componentId": "serverless_lambda",
+      "name": "Serverless Function (Lambda)",
+      "category": "Compute",
+      "tagline": "Event-driven compute that scales without managing servers",
+      "whatItDoes": "A serverless function runs code in response to an event or request while the cloud provider manages provisioning and scaling. It is useful for bursty, short-lived workloads and glue logic. Constraints such as cold starts, execution duration, concurrency quotas, and statelessness shape the design.",
+      "whenToUse": [
+        "Processing events and background jobs",
+        "Handling bursty APIs with low idle traffic",
+        "Automating infrastructure and scheduled tasks"
+      ],
+      "whenNotToUse": [
+        "Long-running compute-intensive processes without a suitable runtime model",
+        "Latency-critical paths where cold starts are unacceptable without mitigation"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "AWS has described Netflix using Lambda for self-managing infrastructure"
+        },
+        {
+          "company": "FINRA",
+          "useCase": "AWS describes a Lambda-based workload for analyzing large volumes of market events"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Scales with concurrency quotas and downstream capacity",
+        "latency": "Warm invocations can be low-latency; cold starts vary by runtime and package",
+        "typicalCost": "Usage based on requests and execution duration"
+      },
+      "commonMistakes": [
+        "Ignoring downstream database connection limits during rapid scale-out",
+        "Packaging oversized dependencies that increase cold-start time",
+        "Assuming exactly-once event processing"
+      ],
+      "interviewTips": "Mention cold starts, idempotency, concurrency controls, event retries, dead-letter handling, observability, and when containers are a better fit."
+    },
+    {
+      "componentId": "docker_container",
+      "name": "Docker Container",
+      "category": "Compute",
+      "tagline": "Portable process package with isolated filesystem and dependencies",
+      "whatItDoes": "A container image packages application code, runtime libraries, and configuration defaults into an immutable artifact. Containers share the host kernel, making them lighter than virtual machines. The image improves repeatability, but production safety still depends on runtime limits, scanning, secrets, and orchestration.",
+      "whenToUse": [
+        "Packaging services consistently across environments",
+        "Running isolated workloads on shared hosts",
+        "Building immutable deployment artifacts"
+      ],
+      "whenNotToUse": [
+        "Treating containers as a security boundary equivalent to separate physical machines",
+        "Baking secrets into images"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Spotify",
+          "useCase": "Uses containerized platform practices including Kubernetes adoption"
+        },
+        {
+          "company": "Netflix",
+          "useCase": "Uses containerized and service-oriented workloads for selected systems"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Application dependent",
+        "latency": "Near-native runtime performance for most workloads",
+        "typicalCost": "Docker tooling is available freely; compute cost depends on runtime platform"
+      },
+      "commonMistakes": [
+        "Using mutable latest tags in production",
+        "Running as root unnecessarily",
+        "Not setting CPU and memory limits"
+      ],
+      "interviewTips": "Explain images versus containers, layers, registries, immutable tags, health checks, resource limits, non-root users, and the difference between Docker and Kubernetes."
+    },
+    {
+      "componentId": "kubernetes_pod",
+      "name": "Kubernetes Pod",
+      "category": "Compute",
+      "tagline": "Smallest deployable Kubernetes unit containing one or more containers",
+      "whatItDoes": "A Kubernetes Pod groups one or more cooperating containers that are scheduled together and share networking and selected resources. Most application Pods contain one main container plus optional sidecars. Pods are disposable; controllers create replacements when instances fail or deployments change.",
+      "whenToUse": [
+        "Running application containers under Kubernetes controllers",
+        "Co-locating a sidecar that must share lifecycle or network namespace",
+        "Defining readiness, liveness, and resource requests for a workload"
+      ],
+      "whenNotToUse": [
+        "Persisting important data only inside the Pod filesystem",
+        "Manually treating individual Pod IPs as durable endpoints"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Spotify",
+          "useCase": "Has publicly discussed adopting Kubernetes in its supported engineering path"
+        },
+        {
+          "company": "Kubernetes ecosystem",
+          "useCase": "Pods are the fundamental workload unit across Kubernetes deployments"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Application dependent",
+        "latency": "Application dependent; scheduling and startup affect recovery time",
+        "typicalCost": "Kubernetes software is open source; cluster and compute costs vary"
+      },
+      "commonMistakes": [
+        "Confusing liveness with readiness checks",
+        "Omitting resource requests and limits",
+        "Depending on a Pod identity that disappears during rescheduling"
+      ],
+      "interviewTips": "Explain shared network namespace, controllers, readiness versus liveness, resource requests and limits, ephemeral lifecycle, and sidecars."
+    },
+    {
+      "componentId": "auto_scaler",
+      "name": "Auto Scaler",
+      "category": "Compute",
+      "tagline": "Adjusts capacity as demand changes",
+      "whatItDoes": "An auto scaler increases or decreases capacity based on observed metrics or forecasts. Horizontal scaling adds instances; vertical scaling changes resources assigned to an instance. Good scaling policies account for warm-up time, downstream bottlenecks, cooldown windows, and the fact that scaling is not instantaneous.",
+      "whenToUse": [
+        "Handling predictable and unpredictable traffic variation",
+        "Reducing idle compute cost",
+        "Maintaining target utilization or queue depth"
+      ],
+      "whenNotToUse": [
+        "Masking memory leaks or inefficient queries instead of fixing them",
+        "Scaling stateless workers without checking downstream quotas"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Kubernetes",
+          "useCase": "Horizontal Pod Autoscaler changes workload capacity to match demand"
+        },
+        {
+          "company": "Amazon Web Services",
+          "useCase": "EC2 Auto Scaling adjusts fleet capacity based on policies"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Capacity increases with instances until a shared bottleneck is reached",
+        "latency": "Scale-out reaction ranges from seconds to minutes",
+        "typicalCost": "Can lower idle cost but may increase spend during spikes"
+      },
+      "commonMistakes": [
+        "Scaling only on CPU when queue depth or latency is the real signal",
+        "No maximum capacity guardrail",
+        "Aggressive scale-in that removes warm capacity too early"
+      ],
+      "interviewTips": "Discuss horizontal versus vertical scaling, metrics, cooldowns, predictive scaling, queue-based workers, and why databases often constrain linear scaling."
+    },
+    {
+      "componentId": "postgresql",
+      "name": "PostgreSQL",
+      "category": "Data",
+      "tagline": "Relational database for transactional integrity and rich SQL",
+      "whatItDoes": "PostgreSQL stores structured data in tables with constraints, indexes, transactions, and a powerful SQL engine. It is a strong default for systems that need correctness, joins, and evolving query patterns. Scaling reads is straightforward with replicas; scaling writes may require partitioning, sharding, or architectural changes.",
+      "whenToUse": [
+        "Transactional business data",
+        "Complex queries and relational integrity",
+        "Systems needing ACID transactions and strong constraints"
+      ],
+      "whenNotToUse": [
+        "Massive write scale that cannot be handled by one primary without a sharding plan",
+        "Unstructured blob storage"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Instagram",
+          "useCase": "Has publicly discussed operating PostgreSQL at large scale"
+        },
+        {
+          "company": "GitLab",
+          "useCase": "Uses PostgreSQL for core application data"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Thousands to tens of thousands of transactions/sec per tuned primary depending on workload",
+        "latency": "Single-digit milliseconds is common for indexed queries near the database",
+        "typicalCost": "Managed starter instances often begin at tens of USD/month"
+      },
+      "commonMistakes": [
+        "Missing indexes on frequent filters and joins",
+        "Long transactions that hold locks and delay vacuum",
+        "Opening unbounded connections instead of pooling"
+      ],
+      "interviewTips": "Cover ACID, MVCC, indexes, query plans, replicas, partitioning, connection pooling, vacuum, and the point at which sharding becomes necessary."
+    },
+    {
+      "componentId": "mysql",
+      "name": "MySQL",
+      "category": "Data",
+      "tagline": "Widely used relational database for reliable OLTP workloads",
+      "whatItDoes": "MySQL is a relational database commonly used for web and transactional applications. It offers indexes, transactions, replication, and a mature operational ecosystem. The design discussion is less about brand preference and more about schema quality, access patterns, failover, and write-scaling limits.",
+      "whenToUse": [
+        "Transactional APIs and web applications",
+        "Read-heavy applications using replicas",
+        "Teams needing a mature relational database ecosystem"
+      ],
+      "whenNotToUse": [
+        "Analytical scans that belong in a warehouse",
+        "Storing large media objects directly in database rows without a reason"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "GitHub",
+          "useCase": "Has publicly discussed MySQL infrastructure and failover incidents"
+        },
+        {
+          "company": "Uber",
+          "useCase": "Has published engineering work involving MySQL-based storage systems"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Thousands to tens of thousands of transactions/sec depending on workload",
+        "latency": "Often low milliseconds for indexed point queries",
+        "typicalCost": "Managed starter instances often begin at tens of USD/month"
+      },
+      "commonMistakes": [
+        "Assuming replicas are immediately consistent",
+        "Relying on implicit schema behavior rather than explicit constraints",
+        "Ignoring slow query logs and execution plans"
+      ],
+      "interviewTips": "Explain primary-replica topology, indexes, transactions, replication lag, failover, schema migrations, and when to introduce cache or sharding."
+    },
+    {
+      "componentId": "mongodb",
+      "name": "MongoDB",
+      "category": "Data",
+      "tagline": "Document database for flexible JSON-like records and horizontal scale",
+      "whatItDoes": "MongoDB stores BSON documents grouped into collections. It supports indexes, replication through replica sets, and horizontal partitioning through sharding. It fits aggregate-shaped data well, but flexible schema is not a license to ignore validation, query planning, or document growth.",
+      "whenToUse": [
+        "Document-centric application data",
+        "Rapidly evolving aggregates with nested fields",
+        "Horizontal scale where shard-key design is understood"
+      ],
+      "whenNotToUse": [
+        "Highly relational workloads dominated by multi-entity joins",
+        "Using an ever-growing document as an unbounded event log"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "MongoDB customers",
+          "useCase": "Used for document-oriented operational workloads across many industries"
+        },
+        {
+          "company": "Adobe",
+          "useCase": "MongoDB has published customer stories involving application data platforms"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Thousands to hundreds of thousands of ops/sec depending on cluster and access pattern",
+        "latency": "Often low milliseconds for indexed operations",
+        "typicalCost": "Managed development tiers may be free or low-cost; production cost varies by cluster"
+      },
+      "commonMistakes": [
+        "Selecting a low-cardinality or monotonically hot shard key",
+        "Skipping schema validation completely",
+        "Creating too many indexes and slowing writes"
+      ],
+      "interviewTips": "Cover document modeling, embedding versus referencing, indexes, replica sets, shard keys, balancing, write concern, read concern, and transactions."
+    },
+    {
+      "componentId": "redis",
+      "name": "Redis",
+      "category": "Data",
+      "tagline": "In-memory data store for low-latency access",
+      "whatItDoes": "Redis stores data structures such as strings, hashes, sets, sorted sets, streams, and probabilistic structures primarily in memory. It is commonly used as a cache, rate-limiter backend, session store, leaderboard, or lightweight coordination tool. Persistence and clustering options exist, but memory economics and failure semantics must be explicit.",
+      "whenToUse": [
+        "Caching hot data",
+        "Rate limiting, sessions, counters, and leaderboards",
+        "Fast ephemeral coordination and stream processing"
+      ],
+      "whenNotToUse": [
+        "Using Redis as the only durable store for irreplaceable data without a persistence and recovery plan",
+        "Caching large low-value objects that exceed memory economics"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "GitHub",
+          "useCase": "Has publicly described Redis use for rate limiting and caching patterns"
+        },
+        {
+          "company": "Twitter/X",
+          "useCase": "Has historically discussed timeline and cache-heavy architectures"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "100K-1M+ ops/sec depending on command mix, pipelining, and topology",
+        "latency": "Common target below 1ms on a healthy local network path",
+        "typicalCost": "Managed small-node starting cost is often tens of USD/month"
+      },
+      "commonMistakes": [
+        "No TTL policy for cache keys",
+        "Using expensive commands on large collections in the request path",
+        "Allowing a cache stampede after expiry"
+      ],
+      "interviewTips": "Discuss data structures, TTLs, eviction, persistence, replication, cluster hash slots, pipelining, hot keys, cache stampedes, and why benchmarks depend on workload."
+    },
+    {
+      "componentId": "cassandra",
+      "name": "Cassandra",
+      "category": "Data",
+      "tagline": "Wide-column database optimized for scalable writes and high availability",
+      "whatItDoes": "Apache Cassandra distributes partitioned data across a cluster with replication and tunable consistency. It is well suited to large write-heavy workloads with known query patterns and no single primary. Data modeling starts from queries because joins and ad hoc relational access are limited.",
+      "whenToUse": [
+        "High-volume time-ordered writes",
+        "Multi-region availability with tunable consistency",
+        "Workloads that can model queries around partition keys"
+      ],
+      "whenNotToUse": [
+        "Applications requiring rich joins and ad hoc SQL analytics",
+        "Using unbounded partitions that become operationally expensive"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Has publicly described Cassandra in multiple platform systems"
+        },
+        {
+          "company": "Discord",
+          "useCase": "Has published engineering work on storing large volumes of message data using Cassandra and later alternatives"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Scales horizontally with nodes for suitable workloads",
+        "latency": "Often single-digit to tens of milliseconds depending on consistency and topology",
+        "typicalCost": "Infrastructure cost depends on node count, storage, and replication factor"
+      },
+      "commonMistakes": [
+        "Unbounded partitions",
+        "Choosing consistency levels without understanding quorum behavior",
+        "Treating Cassandra like a relational database"
+      ],
+      "interviewTips": "Explain partition keys, clustering columns, replication factor, consistency levels, compaction, tombstones, repair, and query-first modeling."
+    },
+    {
+      "componentId": "elasticsearch",
+      "name": "Elasticsearch",
+      "category": "Data",
+      "tagline": "Distributed search engine for full-text retrieval and analytics",
+      "whatItDoes": "Elasticsearch indexes documents into inverted indexes so text search, filtering, and aggregations are fast. Shards distribute data and replicas add read capacity and resilience. It is usually a secondary search index fed from a source of truth, not the only system of record.",
+      "whenToUse": [
+        "Full-text search",
+        "Log exploration and operational analytics",
+        "Faceted filtering and relevance scoring"
+      ],
+      "whenNotToUse": [
+        "Primary transactional storage for critical business records",
+        "High-frequency updates to deeply nested documents without modeling care"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "GitHub",
+          "useCase": "Uses search indexing for code and issue discovery"
+        },
+        {
+          "company": "Elastic customers",
+          "useCase": "Use Elasticsearch for search, observability, and security analytics"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Varies widely with shard count, indexing rate, query complexity, and hardware",
+        "latency": "Common search targets are tens to hundreds of milliseconds",
+        "typicalCost": "Managed clusters commonly start at tens to hundreds of USD/month"
+      },
+      "commonMistakes": [
+        "Too many tiny shards",
+        "Mapping explosions from uncontrolled dynamic fields",
+        "Expecting immediate consistency after indexing"
+      ],
+      "interviewTips": "Discuss inverted indexes, analyzers, mappings, shards, replicas, refresh interval, eventual visibility, reindexing, and source-of-truth separation."
+    },
+    {
+      "componentId": "dynamodb",
+      "name": "DynamoDB",
+      "category": "Data",
+      "tagline": "Managed key-value and document database with predictable scale",
+      "whatItDoes": "Amazon DynamoDB is a managed NoSQL database designed around partition keys, optional sort keys, and access-pattern-first modeling. It automatically distributes data, but hot partitions and inefficient scans still matter. Secondary indexes, streams, conditional writes, and TTLs support common application patterns.",
+      "whenToUse": [
+        "Serverless applications with known access patterns",
+        "High-scale key-value lookups",
+        "Workloads needing managed scaling and low operational overhead"
+      ],
+      "whenNotToUse": [
+        "Relational joins and exploratory queries",
+        "Using table scans as the normal request path"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Amazon Web Services customers",
+          "useCase": "Use DynamoDB for serverless and internet-scale operational workloads"
+        },
+        {
+          "company": "Amazon",
+          "useCase": "Dynamo-style design principles originated from Amazon's availability needs"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Scales to very high request rates when keys distribute traffic well",
+        "latency": "Single-digit millisecond design target for many operations",
+        "typicalCost": "On-demand or provisioned usage pricing; validate current rates"
+      },
+      "commonMistakes": [
+        "Hot partition keys",
+        "Overusing scans",
+        "Designing the schema before listing access patterns"
+      ],
+      "interviewTips": "Explain partition keys, sort keys, GSIs, LSIs, hot partitions, conditional writes, streams, TTL, provisioned versus on-demand capacity, and single-table design trade-offs."
+    },
+    {
+      "componentId": "s3",
+      "name": "Object Storage (S3)",
+      "category": "Data",
+      "tagline": "Durable object storage for files, backups, and data lakes",
+      "whatItDoes": "Object storage stores blobs under keys inside buckets rather than rows or filesystem blocks. Amazon S3 is a common example: applications use it for media, backups, static assets, logs, and analytical data. Object storage is durable and scalable but has different access semantics from a database or mounted disk.",
+      "whenToUse": [
+        "User uploads and media files",
+        "Backups, archives, logs, and data lake objects",
+        "Static website assets and origin storage for a CDN"
+      ],
+      "whenNotToUse": [
+        "Low-latency row-level transactional updates",
+        "Using object listing as a high-frequency database query"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Uses cloud object storage as part of large-scale media and data workflows"
+        },
+        {
+          "company": "Dropbox",
+          "useCase": "Uses object-oriented storage concepts for file content at scale"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Scales horizontally; request patterns and prefixes should still be designed sensibly",
+        "latency": "Typically tens to hundreds of milliseconds per request",
+        "typicalCost": "Usage based on stored GB, requests, retrieval, and transfer"
+      },
+      "commonMistakes": [
+        "Public bucket exposure",
+        "No lifecycle policy for old data",
+        "Assuming a successful upload automatically means application metadata is consistent"
+      ],
+      "interviewTips": "Compare object storage with block storage and databases. Discuss presigned URLs, multipart uploads, lifecycle tiers, versioning, encryption, access policies, and CDN integration."
+    },
+    {
+      "componentId": "data_warehouse",
+      "name": "Data Warehouse",
+      "category": "Data",
+      "tagline": "Analytical store optimized for scans, aggregations, and business reporting",
+      "whatItDoes": "A data warehouse centralizes historical data for analytical queries. Columnar storage, partition pruning, compression, and distributed execution make large scans efficient. Warehouses should be fed through controlled pipelines so analysts can trust definitions, lineage, and freshness.",
+      "whenToUse": [
+        "Business intelligence dashboards",
+        "Historical reporting and cross-domain analysis",
+        "Batch and interactive analytical queries over large datasets"
+      ],
+      "whenNotToUse": [
+        "Serving transactional request-path writes",
+        "Using raw production tables without governance as the only reporting layer"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Airbnb",
+          "useCase": "Has published data platform work supporting analytics and experimentation"
+        },
+        {
+          "company": "Netflix",
+          "useCase": "Uses large-scale analytics platforms to optimize product and streaming operations"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Optimized for parallel scans rather than OLTP requests/sec",
+        "latency": "Seconds to minutes for analytical queries depending on size and optimization",
+        "typicalCost": "Compute and storage usage based; can range from modest to substantial"
+      },
+      "commonMistakes": [
+        "No partitioning or clustering strategy",
+        "Duplicated business metrics with inconsistent definitions",
+        "Letting unbounded dashboard queries consume all warehouse capacity"
+      ],
+      "interviewTips": "Explain OLTP versus OLAP, columnar storage, partitions, materialized views, ETL/ELT, dimensional modeling, cost controls, and data freshness."
+    },
+    {
+      "componentId": "time_series_db",
+      "name": "Time Series Database",
+      "category": "Data",
+      "tagline": "Storage optimized for timestamped measurements and retention policies",
+      "whatItDoes": "A time series database stores values indexed primarily by time and dimensions such as host, service, or sensor. It supports efficient append-heavy writes, range scans, downsampling, retention, and aggregations. It is useful for monitoring and telemetry but can suffer from high-cardinality labels.",
+      "whenToUse": [
+        "Infrastructure metrics",
+        "IoT sensor readings",
+        "Financial or operational measurements over time"
+      ],
+      "whenNotToUse": [
+        "General relational business data",
+        "Unbounded high-cardinality tags without capacity planning"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Prometheus users",
+          "useCase": "Store and query timestamped monitoring samples"
+        },
+        {
+          "company": "Grafana ecosystem",
+          "useCase": "Visualizes time series from many supported backends"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Often designed for high append rates",
+        "latency": "Range queries commonly target milliseconds to seconds",
+        "typicalCost": "Depends heavily on retention, sample interval, and cardinality"
+      },
+      "commonMistakes": [
+        "High-cardinality label explosions",
+        "Keeping raw high-resolution data forever",
+        "Using timestamps without a clear retention and rollup policy"
+      ],
+      "interviewTips": "Discuss append patterns, tags, high cardinality, retention, downsampling, compression, late-arriving data, and why monitoring data needs bounded cost."
+    },
+    {
+      "componentId": "graph_db",
+      "name": "Graph Database",
+      "category": "Data",
+      "tagline": "Models relationships as first-class nodes and edges",
+      "whatItDoes": "A graph database stores entities and relationships directly, making multi-hop traversal natural. It fits problems where the path between records matters as much as individual records. Graph systems can simplify recommendation, fraud, and dependency queries, but are not automatically better for ordinary CRUD.",
+      "whenToUse": [
+        "Social graph traversal",
+        "Fraud rings and identity relationships",
+        "Knowledge graphs and dependency maps"
+      ],
+      "whenNotToUse": [
+        "Simple key-value lookups",
+        "Replacing a relational database without relationship-heavy access patterns"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "LinkedIn",
+          "useCase": "Popularized graph-oriented thinking for professional relationships"
+        },
+        {
+          "company": "GitHub",
+          "useCase": "Dependency and collaboration relationships are naturally graph-shaped"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Highly workload dependent; traversal depth and fan-out dominate",
+        "latency": "Point lookups can be fast; deep traversals can become expensive",
+        "typicalCost": "Managed graph services often start above simple database starter tiers"
+      },
+      "commonMistakes": [
+        "Unbounded traversals",
+        "Missing edge direction and relationship semantics",
+        "Assuming graph modeling removes the need for indexes"
+      ],
+      "interviewTips": "Explain nodes, edges, properties, traversal depth, fan-out limits, indexing, graph partitioning difficulty, and when relational tables remain simpler."
+    },
+    {
+      "componentId": "kafka",
+      "name": "Apache Kafka",
+      "category": "Messaging",
+      "tagline": "Partitioned event log for durable high-throughput streaming",
+      "whatItDoes": "Kafka stores ordered records in partitions and lets consumer groups read at their own pace. Retention allows replay, making Kafka useful as an event backbone and stream-processing source. Ordering is guaranteed within a partition, not across an entire topic.",
+      "whenToUse": [
+        "High-volume event streaming",
+        "Change data capture pipelines",
+        "Replayable integration events and analytics feeds"
+      ],
+      "whenNotToUse": [
+        "Simple low-volume task queues needing per-message routing and easy retries",
+        "Assuming global ordering while using many partitions"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "LinkedIn",
+          "useCase": "Created Kafka for event and activity data pipelines"
+        },
+        {
+          "company": "Netflix",
+          "useCase": "Uses Kafka-style streaming patterns in large-scale data systems"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Hundreds of thousands to millions of messages/sec per cluster depending on payload and durability",
+        "latency": "Often milliseconds to tens of milliseconds",
+        "typicalCost": "Managed clusters commonly start at hundreds of USD/month; self-managed cost varies"
+      },
+      "commonMistakes": [
+        "Too few partitions for scale or too many for operational simplicity",
+        "No idempotency strategy for reprocessing",
+        "Ignoring consumer lag"
+      ],
+      "interviewTips": "Discuss topics, partitions, offsets, consumer groups, retention, replay, replication, ordering scope, delivery semantics, compaction, and consumer lag."
+    },
+    {
+      "componentId": "rabbitmq",
+      "name": "RabbitMQ",
+      "category": "Messaging",
+      "tagline": "Message broker for queues, routing, acknowledgements, and work distribution",
+      "whatItDoes": "RabbitMQ accepts messages from publishers, routes them through exchanges, and delivers them from queues to consumers. It supports acknowledgements, publisher confirms, dead-lettering, priorities, and multiple routing styles. It is often a good fit for task distribution and integration workflows.",
+      "whenToUse": [
+        "Background jobs",
+        "Routing messages to different consumers using exchanges",
+        "Work queues with acknowledgement and retry behavior"
+      ],
+      "whenNotToUse": [
+        "Very large retained event logs that need replay for months",
+        "Using a queue without dead-letter handling for poison messages"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "RabbitMQ ecosystem",
+          "useCase": "Used broadly for application messaging and work queues"
+        },
+        {
+          "company": "Cloud platforms",
+          "useCase": "Offer managed RabbitMQ-compatible broker services"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Thousands to hundreds of thousands of messages/sec depending on durability and topology",
+        "latency": "Usually milliseconds",
+        "typicalCost": "Self-managed or managed broker; small production deployments often tens to hundreds of USD/month"
+      },
+      "commonMistakes": [
+        "Auto-ack before processing finishes",
+        "Unlimited prefetch that overloads consumers",
+        "No dead-letter queue"
+      ],
+      "interviewTips": "Explain exchanges, queues, bindings, acknowledgements, publisher confirms, durability, prefetch, dead-letter queues, and when Kafka is a better fit."
+    },
+    {
+      "componentId": "sqs",
+      "name": "Amazon SQS",
+      "category": "Messaging",
+      "tagline": "Managed queue for decoupling producers and workers",
+      "whatItDoes": "Amazon Simple Queue Service stores messages until consumers retrieve and delete them. Visibility timeout prevents immediate redelivery while a worker processes a message. Standard queues prioritize scale and at-least-once delivery; FIFO queues add ordering and deduplication features with different constraints.",
+      "whenToUse": [
+        "Decoupling web requests from background work",
+        "Buffering traffic spikes",
+        "Serverless event processing"
+      ],
+      "whenNotToUse": [
+        "Requiring complex broker-side routing",
+        "Assuming one delivery without idempotent consumers"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Amazon Web Services customers",
+          "useCase": "Use SQS to decouple asynchronous workloads"
+        },
+        {
+          "company": "Serverless applications",
+          "useCase": "Commonly pair API Gateway, Lambda, and SQS"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Very high managed throughput; FIFO and account quotas should be checked",
+        "latency": "Typically low tens of milliseconds or more depending on polling",
+        "typicalCost": "Usage based per API request"
+      },
+      "commonMistakes": [
+        "Visibility timeout shorter than processing duration",
+        "Deleting before processing succeeds",
+        "No dead-letter queue or redrive policy"
+      ],
+      "interviewTips": "Discuss standard versus FIFO, visibility timeout, long polling, at-least-once delivery, idempotency, DLQs, redrive, and backpressure."
+    },
+    {
+      "componentId": "sns",
+      "name": "Amazon SNS",
+      "category": "Messaging",
+      "tagline": "Managed publish-subscribe fan-out service",
+      "whatItDoes": "Amazon Simple Notification Service publishes a message to a topic and fans it out to subscribed endpoints such as queues, functions, HTTP endpoints, or email. It is useful for broadcasting events to multiple independent consumers. Durable processing is often achieved by subscribing queues rather than relying only on direct delivery.",
+      "whenToUse": [
+        "Fan-out from one event to multiple services",
+        "Notifications and integration events",
+        "Sending events to multiple SQS queues"
+      ],
+      "whenNotToUse": [
+        "Storing a replayable event history",
+        "Complex stream transformations"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Amazon Web Services customers",
+          "useCase": "Use SNS topics for pub-sub fan-out"
+        },
+        {
+          "company": "Serverless applications",
+          "useCase": "Use SNS to trigger multiple downstream workflows"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Managed scale with service quotas",
+        "latency": "Typically near real-time delivery",
+        "typicalCost": "Usage based per publish and delivery"
+      },
+      "commonMistakes": [
+        "Using direct HTTP delivery without retry and idempotency planning",
+        "Assuming subscriber ordering",
+        "No subscription filter strategy"
+      ],
+      "interviewTips": "Compare SNS fan-out with SQS work queues, EventBridge routing, and Kafka logs. Mention retries, DLQs, filtering, ordering expectations, and subscriber independence."
+    },
+    {
+      "componentId": "eventbridge",
+      "name": "Amazon EventBridge",
+      "category": "Messaging",
+      "tagline": "Managed event bus for routing events by rules",
+      "whatItDoes": "EventBridge receives events from applications, AWS services, and partner systems, then routes matching events to targets. Rules inspect event structure rather than requiring each producer to know consumers. It is useful for loosely coupled workflows and integrations, but it is not a general replacement for a high-throughput retained stream.",
+      "whenToUse": [
+        "Event-driven application integration",
+        "Routing cloud-service events",
+        "Scheduling and cross-account event buses"
+      ],
+      "whenNotToUse": [
+        "Very high-volume retained telemetry streams",
+        "Workflows needing strict total ordering"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Amazon Web Services customers",
+          "useCase": "Use EventBridge to route cloud and application events"
+        },
+        {
+          "company": "GuardDuty integrations",
+          "useCase": "AWS documents EventBridge rules for reacting to malware-protection scan events"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Managed service with quotas that should be validated",
+        "latency": "Typically near real-time but not a hard real-time guarantee",
+        "typicalCost": "Usage based per published, matched, or delivered event depending on feature"
+      },
+      "commonMistakes": [
+        "Rules that silently drop unmatched events",
+        "No schema ownership",
+        "Using an event bus where a queue is needed for worker backpressure"
+      ],
+      "interviewTips": "Explain event bus, rules, targets, schemas, retries, DLQs, idempotency, and the difference between routing events and buffering work."
+    },
+    {
+      "componentId": "nats",
+      "name": "NATS",
+      "category": "Messaging",
+      "tagline": "Lightweight messaging system for low-latency service communication",
+      "whatItDoes": "NATS provides lightweight publish-subscribe and request-reply messaging, with JetStream adding persistence and stream features. Its simple protocol and low overhead suit internal service messaging. The design must distinguish ephemeral core messaging from persisted delivery guarantees.",
+      "whenToUse": [
+        "Low-latency internal pub-sub",
+        "Request-reply between services",
+        "Edge or distributed messaging with a lightweight broker"
+      ],
+      "whenNotToUse": [
+        "Assuming persistence when using only ephemeral core NATS",
+        "Replacing a durable data pipeline without evaluating retention and replay requirements"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "NATS ecosystem",
+          "useCase": "Used in cloud-native and edge systems"
+        },
+        {
+          "company": "CNCF ecosystem",
+          "useCase": "NATS is used as a messaging component in distributed platforms"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "High message rates with low overhead depending on topology and persistence",
+        "latency": "Often sub-millisecond to low milliseconds on local networks",
+        "typicalCost": "Open-source software; infrastructure and managed-service cost vary"
+      },
+      "commonMistakes": [
+        "Confusing core NATS with JetStream guarantees",
+        "No subject naming governance",
+        "Ignoring slow consumers"
+      ],
+      "interviewTips": "Discuss subjects, pub-sub, request-reply, queue groups, JetStream, slow consumers, delivery semantics, and how it differs from Kafka and RabbitMQ."
+    },
+    {
+      "componentId": "pubsub",
+      "name": "Cloud Pub/Sub",
+      "category": "Messaging",
+      "tagline": "Managed asynchronous messaging for event fan-out and streaming ingestion",
+      "whatItDoes": "Cloud Pub/Sub is a managed messaging service that lets publishers send messages to topics and subscribers process them through subscriptions. It decouples services and supports scalable ingestion. Consumers must handle retries, ordering scope, and duplicate delivery according to the selected configuration.",
+      "whenToUse": [
+        "Cloud-native event ingestion",
+        "Fan-out to independent subscribers",
+        "Decoupling services with managed operations"
+      ],
+      "whenNotToUse": [
+        "Needing relational transactions across message publication and database writes without an outbox pattern",
+        "Assuming duplicate-free processing by default"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Google Cloud customers",
+          "useCase": "Use Pub/Sub for asynchronous integration and ingestion"
+        },
+        {
+          "company": "Data pipelines",
+          "useCase": "Use Pub/Sub as an entry point for stream processing"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Managed horizontal scale subject to quotas",
+        "latency": "Often low milliseconds to seconds depending on delivery mode and load",
+        "typicalCost": "Usage based on message volume and delivery"
+      },
+      "commonMistakes": [
+        "No idempotency keys",
+        "Unbounded subscriber backlog",
+        "Ignoring ordering-key hotspots"
+      ],
+      "interviewTips": "Cover topics, subscriptions, push versus pull, acknowledgements, retry, dead-letter handling, ordering keys, backlogs, and idempotent processing."
+    },
+    {
+      "componentId": "kubernetes_service",
+      "name": "Kubernetes Service",
+      "category": "Infrastructure",
+      "tagline": "Stable virtual endpoint for a changing set of Pods",
+      "whatItDoes": "A Kubernetes Service provides a stable network identity and selects Pods using labels. It decouples clients from disposable Pod IPs and can expose workloads internally or externally. Headless Services intentionally skip a single virtual IP when direct discovery is required.",
+      "whenToUse": [
+        "Discovering Pods behind a stable name",
+        "Internal load distribution",
+        "Exposing a workload through ClusterIP, NodePort, or LoadBalancer semantics"
+      ],
+      "whenNotToUse": [
+        "Addressing individual Pods as if they were permanent",
+        "Using a Service alone when HTTP host and path routing are required"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Kubernetes ecosystem",
+          "useCase": "Services are the standard abstraction for stable Pod access"
+        },
+        {
+          "company": "Cloud-native applications",
+          "useCase": "Use Services for internal discovery and traffic distribution"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Depends on implementation and backend capacity",
+        "latency": "Low routing overhead in typical cluster networking",
+        "typicalCost": "ClusterIP has no direct cloud load-balancer charge; external load balancers may cost extra"
+      },
+      "commonMistakes": [
+        "Selector labels do not match intended Pods",
+        "Confusing Service readiness with application readiness",
+        "Using NodePort publicly without a deliberate security design"
+      ],
+      "interviewTips": "Explain ClusterIP, LoadBalancer, NodePort, headless Services, selectors, endpoints, and the relationship between Service and Ingress."
+    },
+    {
+      "componentId": "ingress_controller",
+      "name": "Ingress Controller",
+      "category": "Infrastructure",
+      "tagline": "Implements external HTTP routing into a Kubernetes cluster",
+      "whatItDoes": "An Ingress resource describes host and path routing rules, while an Ingress controller watches those resources and configures an actual proxy or load balancer. It commonly provides TLS termination and name-based virtual hosting. Gateway API is increasingly relevant for newer Kubernetes traffic-management designs.",
+      "whenToUse": [
+        "Routing multiple HTTP services through one external endpoint",
+        "TLS termination and host-based routing",
+        "Standardizing web entry into a cluster"
+      ],
+      "whenNotToUse": [
+        "Non-HTTP protocols without a controller-specific solution",
+        "Assuming the Ingress resource works without an installed controller"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Kubernetes ecosystem",
+          "useCase": "Ingress controllers implement cluster HTTP entry routing"
+        },
+        {
+          "company": "Cloud providers",
+          "useCase": "Offer managed ingress or gateway implementations"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Depends on controller and underlying load balancer",
+        "latency": "Usually low single-digit millisecond proxy overhead",
+        "typicalCost": "Controller software may be open source; external load balancer cost varies"
+      },
+      "commonMistakes": [
+        "Deploying an Ingress resource but no controller",
+        "No TLS automation or certificate monitoring",
+        "Treating controller-specific annotations as portable"
+      ],
+      "interviewTips": "Explain resource versus controller, TLS, path routing, controller-specific behavior, high availability, and when to discuss Gateway API."
+    },
+    {
+      "componentId": "service_mesh",
+      "name": "Service Mesh (Istio)",
+      "category": "Infrastructure",
+      "tagline": "Manages service-to-service traffic, identity, and telemetry",
+      "whatItDoes": "A service mesh adds a data plane and control plane for internal traffic management. It can provide mutual TLS, retries, traffic shifting, policy, and telemetry without every application implementing those features independently. The benefit must justify added complexity and resource overhead.",
+      "whenToUse": [
+        "Consistent mTLS across many services",
+        "Traffic splitting and progressive delivery",
+        "Standardized service telemetry and policy"
+      ],
+      "whenNotToUse": [
+        "Small systems where library or gateway controls are enough",
+        "Using retries blindly and amplifying overload"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Cloud-native platforms",
+          "useCase": "Use meshes such as Istio for traffic policy and identity"
+        },
+        {
+          "company": "Large microservice environments",
+          "useCase": "Adopt service meshes when cross-cutting network policy becomes hard to manage"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Application and proxy dependent",
+        "latency": "Adds proxy processing overhead, often measurable in low milliseconds",
+        "typicalCost": "Open-source software; operational and compute overhead can be significant"
+      },
+      "commonMistakes": [
+        "Enabling every feature at once",
+        "Retry policies that cause retry storms",
+        "Ignoring sidecar resource consumption"
+      ],
+      "interviewTips": "Discuss sidecars or ambient approaches, control plane, data plane, mTLS, retries, traffic shifting, observability, and the operational trade-off."
+    },
+    {
+      "componentId": "config_server",
+      "name": "Config Server",
+      "category": "Infrastructure",
+      "tagline": "Central source for versioned runtime configuration",
+      "whatItDoes": "A config server stores environment-specific application settings outside deployment artifacts. Services fetch or receive configuration updates while preserving version history and access control. Safe rollout matters because a bad configuration can fail many services faster than a code deployment.",
+      "whenToUse": [
+        "Centralizing feature flags and runtime settings",
+        "Separating deployable artifacts from environment configuration",
+        "Auditing configuration changes"
+      ],
+      "whenNotToUse": [
+        "Storing secrets without appropriate encryption and access controls",
+        "Pushing unvalidated global changes instantly to every instance"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Created Archaius-style dynamic configuration patterns for services"
+        },
+        {
+          "company": "Cloud-native platforms",
+          "useCase": "Use centralized configuration stores and feature-flag systems"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Usually modest but availability is critical",
+        "latency": "Reads should be cached locally; startup dependency must be resilient",
+        "typicalCost": "Often included in platform tooling or backed by a small managed store"
+      },
+      "commonMistakes": [
+        "No schema validation",
+        "No rollback or version history",
+        "Making every request synchronously depend on the config server"
+      ],
+      "interviewTips": "Explain local caching, versioning, gradual rollout, validation, defaults, fail-safe behavior, audit trails, and separation from secret management."
+    },
+    {
+      "componentId": "secret_manager",
+      "name": "Secret Manager",
+      "category": "Infrastructure",
+      "tagline": "Stores and controls access to credentials and encryption material",
+      "whatItDoes": "A secret manager protects passwords, API keys, certificates, and tokens with encryption, access policies, and audit logs. Applications retrieve secrets at runtime or through controlled injection. Rotation and least privilege reduce the blast radius when a credential is exposed.",
+      "whenToUse": [
+        "Database passwords and API keys",
+        "Certificate and token rotation",
+        "Centralized audit of sensitive credential access"
+      ],
+      "whenNotToUse": [
+        "Committing credentials to source control",
+        "Using one shared secret for every environment and service"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Cloud providers",
+          "useCase": "Offer managed secret stores and key-management integrations"
+        },
+        {
+          "company": "Kubernetes platforms",
+          "useCase": "Integrate external secret stores or carefully controlled Secret resources"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Low to moderate; applications should cache appropriately",
+        "latency": "Usually milliseconds to tens of milliseconds; avoid per-request fetches",
+        "typicalCost": "Often low usage-based cost plus key-management charges"
+      },
+      "commonMistakes": [
+        "Logging secret values",
+        "Never rotating credentials",
+        "Giving broad read permission to all workloads"
+      ],
+      "interviewTips": "Cover encryption at rest, transport security, IAM policies, rotation, versioning, audit logs, bootstrap identity, caching, and emergency revocation."
+    },
+    {
+      "componentId": "cache_aside",
+      "name": "Cache-Aside",
+      "category": "Patterns",
+      "tagline": "Application loads missing data into cache on demand",
+      "whatItDoes": "With cache-aside, the application checks the cache first, reads the database on a miss, then populates the cache. It is simple and widely used because the cache only contains requested data. The application must manage TTLs, invalidation, and stampede protection.",
+      "whenToUse": [
+        "Read-heavy data with repeat access",
+        "Optional cache where database remains source of truth",
+        "Gradual caching without changing write path"
+      ],
+      "whenNotToUse": [
+        "Strongly consistent reads immediately after writes without an invalidation strategy",
+        "Low-reuse data that wastes cache memory"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Large web applications",
+          "useCase": "Use cache-aside for hot database reads"
+        },
+        {
+          "company": "Redis users",
+          "useCase": "Commonly implement cache-aside with TTLs and request coalescing"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Cache backend dependent",
+        "latency": "Cache hits often sub-millisecond to a few milliseconds",
+        "typicalCost": "Cost is the chosen cache capacity"
+      },
+      "commonMistakes": [
+        "No TTL",
+        "Cache stampede on popular expiry",
+        "Serving stale data after writes"
+      ],
+      "interviewTips": "Describe miss flow, stale data, invalidation, TTL jitter, negative caching, request coalescing, and why caches are not sources of truth."
+    },
+    {
+      "componentId": "write_through",
+      "name": "Write-Through Cache",
+      "category": "Patterns",
+      "tagline": "Writes data through the cache while persisting to the backing store",
+      "whatItDoes": "A write-through cache updates the cache as part of the write flow and ensures the backing store is also updated. Reads are more likely to find fresh cached values, but write latency and failure handling become more complex. The implementation must define ordering and durability semantics.",
+      "whenToUse": [
+        "Read-heavy data where newly written values should be immediately cached",
+        "Controlled write paths with predictable cache keys",
+        "Systems willing to pay extra write overhead for read freshness"
+      ],
+      "whenNotToUse": [
+        "High write volume where most values are never read",
+        "When cache failure must never block durable writes unless explicitly designed"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Caching platforms",
+          "useCase": "Offer write-through integration patterns"
+        },
+        {
+          "company": "Commerce systems",
+          "useCase": "May keep frequently read product or session state warm after updates"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Limited by cache and backing-store write path",
+        "latency": "Writes are slower than cache-aside because multiple systems participate",
+        "typicalCost": "Cost is cache plus backing-store usage"
+      },
+      "commonMistakes": [
+        "Unclear behavior if cache succeeds but database fails",
+        "No idempotency on retry",
+        "Caching every write even when reuse is low"
+      ],
+      "interviewTips": "Compare write-through, write-behind, and cache-aside. Discuss partial failure, ordering, durability, and when a simpler invalidation strategy is safer."
+    },
+    {
+      "componentId": "read_replica",
+      "name": "Read Replica",
+      "category": "Patterns",
+      "tagline": "Copies database data to additional nodes for reads and resilience",
+      "whatItDoes": "A read replica receives changes from a primary database and serves read traffic. Replicas increase read capacity and can support failover, reporting, and regional locality. Replication is often asynchronous, so applications must decide when stale reads are acceptable.",
+      "whenToUse": [
+        "Read-heavy workloads",
+        "Reporting queries separated from transactional primary",
+        "Disaster recovery and regional read locality"
+      ],
+      "whenNotToUse": [
+        "Read-after-write paths requiring guaranteed freshness unless routed to primary",
+        "Scaling write throughput without sharding"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "GitHub",
+          "useCase": "Operates replicated database topologies"
+        },
+        {
+          "company": "Large SaaS platforms",
+          "useCase": "Route selected reads to replicas to protect primaries"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Read capacity increases with replicas",
+        "latency": "Local reads may be faster; freshness depends on replication lag",
+        "typicalCost": "Additional database instance and storage cost per replica"
+      },
+      "commonMistakes": [
+        "Sending all reads to replicas including read-after-write flows",
+        "No replication-lag monitoring",
+        "Assuming failover is automatic and lossless without testing"
+      ],
+      "interviewTips": "Explain synchronous versus asynchronous replication, lag, read-after-write consistency, failover, promotion, read routing, and that replicas do not scale writes."
+    },
+    {
+      "componentId": "database_sharding",
+      "name": "Database Sharding",
+      "category": "Patterns",
+      "tagline": "Splits data across independent database partitions",
+      "whatItDoes": "Sharding partitions rows or documents across database nodes using a shard key. Each shard handles a subset of data, increasing write and storage capacity. The gain comes with operational complexity: cross-shard queries, rebalancing, hot partitions, and distributed transactions.",
+      "whenToUse": [
+        "Write scale beyond a single database primary",
+        "Large datasets that exceed one node's practical limits",
+        "Tenant or region isolation"
+      ],
+      "whenNotToUse": [
+        "Small systems that can scale vertically or optimize queries first",
+        "Workloads dominated by cross-shard joins"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Instagram",
+          "useCase": "Has publicly discussed sharding PostgreSQL-backed workloads"
+        },
+        {
+          "company": "MongoDB",
+          "useCase": "Provides built-in sharding using shard keys"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Can scale horizontally when load is well distributed",
+        "latency": "Single-shard queries remain efficient; scatter-gather queries add cost",
+        "typicalCost": "Multiple database nodes plus routing and operational overhead"
+      },
+      "commonMistakes": [
+        "Choosing a hot shard key",
+        "No resharding strategy",
+        "Allowing uncontrolled scatter-gather queries"
+      ],
+      "interviewTips": "Discuss shard key selection, routing, rebalancing, virtual shards, hot partitions, global indexes, cross-shard transactions, and migration strategy."
+    },
+    {
+      "componentId": "circuit_breaker",
+      "name": "Circuit Breaker",
+      "category": "Patterns",
+      "tagline": "Stops repeated calls to an unhealthy dependency",
+      "whatItDoes": "A circuit breaker tracks failures and temporarily blocks calls when a dependency is unhealthy. It moves through closed, open, and half-open states, allowing limited probes before normal traffic resumes. The pattern protects threads, latency budgets, and downstream recovery.",
+      "whenToUse": [
+        "Remote calls to failure-prone dependencies",
+        "Protecting thread pools during partial outages",
+        "Failing fast with fallback behavior"
+      ],
+      "whenNotToUse": [
+        "Hiding persistent errors without alerting",
+        "Using a breaker without timeouts and bounded retries"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Netflix",
+          "useCase": "Popularized circuit-breaker patterns in microservice systems"
+        },
+        {
+          "company": "Payment systems",
+          "useCase": "Use breakers around external provider calls"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Improves effective capacity during dependency failure",
+        "latency": "Open-state failures return quickly rather than waiting for timeout",
+        "typicalCost": "Implemented in libraries, proxies, or meshes"
+      },
+      "commonMistakes": [
+        "No timeout before the breaker",
+        "Same threshold for every dependency",
+        "Fallback that overloads another service"
+      ],
+      "interviewTips": "Explain states, thresholds, timeouts, retries, fallback, bulkheads, metrics, and why a breaker is not a substitute for fixing the dependency."
+    },
+    {
+      "componentId": "saga",
+      "name": "Saga",
+      "category": "Patterns",
+      "tagline": "Coordinates multi-service business transactions through compensating actions",
+      "whatItDoes": "A saga breaks a distributed business workflow into local transactions. Each successful step triggers the next step; failures cause compensating actions where possible. Sagas avoid locking resources across services but require explicit workflow state, idempotency, and business-aware recovery.",
+      "whenToUse": [
+        "Orders involving payment, inventory, and shipping services",
+        "Long-running business workflows",
+        "Event-driven operations needing compensating actions"
+      ],
+      "whenNotToUse": [
+        "Workflows where compensation is impossible and strict atomicity is mandatory",
+        "Simple transactions inside one database"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Commerce platforms",
+          "useCase": "Use saga-like workflows for order processing"
+        },
+        {
+          "company": "Travel booking systems",
+          "useCase": "Coordinate reservations with compensating cancellations"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Workflow and broker dependent",
+        "latency": "Often spans seconds or longer because steps are asynchronous",
+        "typicalCost": "Application orchestration and messaging infrastructure"
+      },
+      "commonMistakes": [
+        "Treating compensation as perfect rollback",
+        "No idempotency keys",
+        "Losing workflow state during retries"
+      ],
+      "interviewTips": "Discuss choreography versus orchestration, local transactions, compensation, idempotency, timeouts, audit history, and when 2PC is inappropriate."
+    },
+    {
+      "componentId": "cqrs",
+      "name": "CQRS",
+      "category": "Patterns",
+      "tagline": "Separates write commands from read models",
+      "whatItDoes": "Command Query Responsibility Segregation uses different models for writes and reads. Commands enforce business rules, while read projections are optimized for query needs. CQRS can improve scale and clarity in complex domains, but projection lag and operational complexity make it unnecessary for ordinary CRUD.",
+      "whenToUse": [
+        "Different read and write scaling needs",
+        "Complex domain logic with specialized read views",
+        "Event-driven projections for dashboards or feeds"
+      ],
+      "whenNotToUse": [
+        "Simple CRUD applications",
+        "Teams unable to operate eventual consistency and projection rebuilds"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Event-driven platforms",
+          "useCase": "Use read projections for fast user-facing views"
+        },
+        {
+          "company": "Finance and commerce systems",
+          "useCase": "May separate command validation from query models"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Can scale read and write paths independently",
+        "latency": "Read projections may lag behind writes",
+        "typicalCost": "Additional storage, messaging, and operational complexity"
+      },
+      "commonMistakes": [
+        "Applying CQRS everywhere",
+        "No plan to rebuild projections",
+        "Hiding eventual consistency from product behavior"
+      ],
+      "interviewTips": "Explain command model, query model, projections, eventual consistency, rebuilds, event sourcing relationship, and why CQRS is optional."
+    },
+    {
+      "componentId": "event_sourcing",
+      "name": "Event Sourcing",
+      "category": "Patterns",
+      "tagline": "Persists state changes as an append-only event history",
+      "whatItDoes": "Event sourcing stores domain events rather than only the latest row state. Current state is reconstructed by replaying events or reading projections. The history supports audit and temporal analysis, but schema evolution, replay cost, and operational discipline are substantial.",
+      "whenToUse": [
+        "Auditable domains where change history is a core requirement",
+        "Reconstructing historical state",
+        "Building projections for multiple read models"
+      ],
+      "whenNotToUse": [
+        "Ordinary CRUD where an audit table is enough",
+        "Teams without a plan for event versioning and replay"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Financial systems",
+          "useCase": "Use append-only ledger-like histories"
+        },
+        {
+          "company": "Collaboration systems",
+          "useCase": "Record changes that can be replayed into projections"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Append throughput depends on event store and partitioning",
+        "latency": "Writes can be efficient; projection freshness varies",
+        "typicalCost": "Event storage plus projection infrastructure"
+      },
+      "commonMistakes": [
+        "Treating events as mutable records",
+        "Publishing internal implementation details as permanent event contracts",
+        "No snapshot or replay strategy"
+      ],
+      "interviewTips": "Discuss immutable events, projections, snapshots, schema evolution, replay, idempotency, ordering, audit benefits, and the difference from a normal event bus."
+    },
+    {
+      "componentId": "consistent_hashing",
+      "name": "Consistent Hashing",
+      "category": "Patterns",
+      "tagline": "Maps keys to nodes while minimizing remapping during membership changes",
+      "whatItDoes": "Consistent hashing places nodes and keys on a logical ring or uses an equivalent partitioning scheme. Adding or removing a node moves only part of the keyspace instead of reshuffling everything. Virtual nodes improve balance and make capacity adjustments smoother.",
+      "whenToUse": [
+        "Distributed caches",
+        "Partitioned storage systems",
+        "Routing keys across changing worker fleets"
+      ],
+      "whenNotToUse": [
+        "Small static clusters where modulo hashing is sufficient",
+        "Ignoring replication and hot-key behavior"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Cassandra",
+          "useCase": "Uses partitioning concepts to distribute data"
+        },
+        {
+          "company": "Redis Cluster",
+          "useCase": "Partitions keys across hash slots for cluster routing"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Routing is local and inexpensive",
+        "latency": "Minimal computation overhead",
+        "typicalCost": "Algorithmic pattern; no direct service charge"
+      },
+      "commonMistakes": [
+        "Too few virtual nodes",
+        "No replication strategy",
+        "Assuming balanced key counts means balanced workload"
+      ],
+      "interviewTips": "Explain modulo-hash remapping problem, ring, virtual nodes, replication, hotspots, rebalancing, and why many systems use slots or tokens."
+    },
+    {
+      "componentId": "bloom_filter",
+      "name": "Bloom Filter",
+      "category": "Patterns",
+      "tagline": "Probabilistic membership check that trades false positives for compact memory use",
+      "whatItDoes": "A Bloom filter answers whether an item may be present or is definitely absent. It uses multiple hash functions over a bit array. False positives are possible, but false negatives are not expected when the structure is used correctly and items are not removed without a compatible variant.",
+      "whenToUse": [
+        "Avoiding unnecessary disk reads",
+        "Checking likely duplicate identifiers",
+        "Protecting databases from repeated misses"
+      ],
+      "whenNotToUse": [
+        "Needing an authoritative membership answer",
+        "Supporting deletion without a counting or compatible variant"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Cassandra",
+          "useCase": "Uses Bloom-filter-style techniques to avoid unnecessary storage reads"
+        },
+        {
+          "company": "Browsers and security systems",
+          "useCase": "Use probabilistic structures for compact membership checks"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Very high in-memory lookup throughput",
+        "latency": "Typically microseconds or less",
+        "typicalCost": "Memory cost determined by item count and desired false-positive rate"
+      },
+      "commonMistakes": [
+        "Treating a positive result as proof",
+        "Sizing without expected cardinality",
+        "Using a normal Bloom filter when deletion is required"
+      ],
+      "interviewTips": "Explain bit array, hash functions, false positives, no false negatives under normal assumptions, sizing, and practical database-read avoidance."
+    },
+    {
+      "componentId": "two_phase_commit",
+      "name": "Two-Phase Commit",
+      "category": "Patterns",
+      "tagline": "Coordinates atomic commit across multiple participants",
+      "whatItDoes": "Two-phase commit asks participants to prepare, then instructs them to commit or abort. It can provide atomicity across resources but introduces coordinator dependency, blocking risk, and latency. Modern distributed application designs often prefer local transactions plus sagas unless strict atomicity is essential.",
+      "whenToUse": [
+        "Controlled environments needing cross-resource atomicity",
+        "Database systems with built-in distributed transaction support",
+        "Rare workflows where partial completion is unacceptable"
+      ],
+      "whenNotToUse": [
+        "Long-running internet-scale workflows",
+        "Microservice processes where availability matters more than immediate atomicity"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Relational database systems",
+          "useCase": "Support prepared transactions or distributed commit protocols"
+        },
+        {
+          "company": "Enterprise transaction managers",
+          "useCase": "Coordinate multiple transactional resources"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Lower than local transactions due to coordination",
+        "latency": "At least multiple network rounds plus participant work",
+        "typicalCost": "Operational complexity and reduced availability during failures"
+      },
+      "commonMistakes": [
+        "Using 2PC casually across unreliable services",
+        "No coordinator recovery plan",
+        "Holding locks for long periods"
+      ],
+      "interviewTips": "Explain prepare and commit phases, coordinator failure, blocking, lock duration, availability trade-offs, and when saga-based compensation is more suitable."
+    },
+    {
+      "componentId": "prometheus",
+      "name": "Prometheus",
+      "category": "Monitoring",
+      "tagline": "Pull-based metrics collection and alerting toolkit",
+      "whatItDoes": "Prometheus scrapes numeric time-series metrics from targets and stores samples with labels. PromQL queries power dashboards and alerts. It is strong for operational monitoring, but cardinality must be controlled and long-term retention often needs additional architecture.",
+      "whenToUse": [
+        "Service metrics and infrastructure monitoring",
+        "SLO alerting based on latency, errors, traffic, and saturation",
+        "Kubernetes monitoring"
+      ],
+      "whenNotToUse": [
+        "Storing arbitrary high-cardinality event logs",
+        "Using labels for user IDs or request IDs"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Kubernetes ecosystem",
+          "useCase": "Uses Prometheus extensively for cloud-native monitoring"
+        },
+        {
+          "company": "Grafana users",
+          "useCase": "Commonly pair Prometheus metrics with Grafana dashboards"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Depends on scrape interval, target count, and cardinality",
+        "latency": "Near-real-time scrape and query behavior",
+        "typicalCost": "Open-source software; storage and managed-service cost vary"
+      },
+      "commonMistakes": [
+        "High-cardinality labels",
+        "No retention plan",
+        "Alerts based only on internal causes rather than user symptoms"
+      ],
+      "interviewTips": "Discuss metrics model, labels, scraping, PromQL, alerting rules, service discovery, cardinality, federation or remote write, and SLO-oriented alerts."
+    },
+    {
+      "componentId": "grafana",
+      "name": "Grafana",
+      "category": "Monitoring",
+      "tagline": "Dashboard and visualization layer for operational data",
+      "whatItDoes": "Grafana queries data sources such as Prometheus, logs, traces, and databases, then presents dashboards and alerts. It helps teams correlate system behavior visually. A dashboard is only useful when panels answer operational questions rather than display every available metric.",
+      "whenToUse": [
+        "Operational dashboards",
+        "SLO and capacity visualizations",
+        "Correlating metrics, logs, and traces"
+      ],
+      "whenNotToUse": [
+        "Replacing durable telemetry storage",
+        "Creating dozens of panels with no clear action"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Grafana ecosystem",
+          "useCase": "Used broadly for monitoring dashboards"
+        },
+        {
+          "company": "Cloud-native teams",
+          "useCase": "Pair Grafana with Prometheus and log backends"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Depends on dashboard query load and data sources",
+        "latency": "Interactive query latency should usually remain seconds or less",
+        "typicalCost": "Open source or managed plans; cost varies"
+      },
+      "commonMistakes": [
+        "Dashboard overload",
+        "No variables or drill-down paths",
+        "Using averages that hide tail latency"
+      ],
+      "interviewTips": "Discuss data sources, panels, variables, alerting, p95/p99 latency, dashboard ownership, and the difference between visualization and telemetry storage."
+    },
+    {
+      "componentId": "jaeger",
+      "name": "Jaeger",
+      "category": "Monitoring",
+      "tagline": "Distributed tracing system for following requests across services",
+      "whatItDoes": "Jaeger collects spans that describe how a request moves through distributed services. Trace context connects parent and child operations, making latency bottlenecks and failure paths visible. Sampling is important because recording every trace can be expensive.",
+      "whenToUse": [
+        "Debugging microservice latency",
+        "Finding slow downstream dependencies",
+        "Understanding request paths and fan-out"
+      ],
+      "whenNotToUse": [
+        "Replacing metrics for aggregate health",
+        "Collecting every trace at high volume without cost planning"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Cloud-native ecosystem",
+          "useCase": "Uses Jaeger-compatible tracing for distributed systems"
+        },
+        {
+          "company": "OpenTelemetry users",
+          "useCase": "Export traces to Jaeger and other tracing backends"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Collector capacity depends on span volume and sampling",
+        "latency": "Trace ingestion is asynchronous; query latency varies",
+        "typicalCost": "Open-source software; storage and collector cost vary"
+      },
+      "commonMistakes": [
+        "No propagation of trace IDs across async boundaries",
+        "Sampling only successful requests",
+        "Adding huge payloads as span attributes"
+      ],
+      "interviewTips": "Explain traces, spans, context propagation, sampling, baggage, async messaging, tail latency, and how tracing complements metrics and logs."
+    },
+    {
+      "componentId": "elk_stack",
+      "name": "ELK Stack",
+      "category": "Monitoring",
+      "tagline": "Searchable centralized logs using Elasticsearch, Logstash, and Kibana",
+      "whatItDoes": "The ELK pattern centralizes logs so teams can search incidents across hosts and services. Elasticsearch indexes log documents, Logstash or alternative agents transform and ship records, and Kibana visualizes queries. Structured logs, retention, and index lifecycle controls are essential for cost and usability.",
+      "whenToUse": [
+        "Centralized application logs",
+        "Security and audit exploration",
+        "Incident debugging across many services"
+      ],
+      "whenNotToUse": [
+        "Using verbose logs as a substitute for metrics and traces",
+        "Keeping unlimited logs without retention controls"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "Elastic customers",
+          "useCase": "Use Elastic Stack for observability and security analytics"
+        },
+        {
+          "company": "Large SaaS platforms",
+          "useCase": "Centralize structured logs for incident response"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Depends on ingest volume, shard design, and retention",
+        "latency": "Search often targets seconds or less for recent logs",
+        "typicalCost": "Storage and compute can become substantial at high ingest volumes"
+      },
+      "commonMistakes": [
+        "Unstructured free-text-only logs",
+        "Logging secrets or personal data unnecessarily",
+        "Too many shards and no lifecycle policy"
+      ],
+      "interviewTips": "Discuss structured logging, correlation IDs, index lifecycle, retention, redaction, shard sizing, search costs, and why logs are one observability signal."
+    },
+    {
+      "componentId": "pagerduty",
+      "name": "PagerDuty",
+      "category": "Monitoring",
+      "tagline": "On-call alert routing and incident-response coordination platform",
+      "whatItDoes": "PagerDuty receives alerts, applies routing and escalation policies, and notifies the responsible responders. It helps organize on-call rotations and incident workflows. The platform cannot compensate for noisy alerts; teams must alert on actionable user-impacting symptoms.",
+      "whenToUse": [
+        "Routing production alerts to on-call engineers",
+        "Escalating unresolved incidents",
+        "Coordinating incident response and post-incident follow-up"
+      ],
+      "whenNotToUse": [
+        "Sending every warning to a human",
+        "Using paging as a substitute for automated recovery"
+      ],
+      "realWorldUsage": [
+        {
+          "company": "SRE teams",
+          "useCase": "Use on-call platforms for escalation and incident response"
+        },
+        {
+          "company": "Google SRE guidance",
+          "useCase": "Emphasizes timely, actionable, symptom-based alerts"
+        }
+      ],
+      "keyMetrics": {
+        "throughput": "Alert volume should be deliberately low and actionable",
+        "latency": "Notifications should arrive within minutes for urgent incidents",
+        "typicalCost": "Usually per-user subscription pricing"
+      },
+      "commonMistakes": [
+        "Alert fatigue",
+        "No clear service ownership",
+        "Paging on causes that do not affect users"
+      ],
+      "interviewTips": "Discuss severity, escalation policies, on-call ownership, actionable alerts, deduplication, runbooks, incident roles, and blameless postmortems."
+    }
+  ]
+}

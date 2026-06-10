@@ -1,0 +1,863 @@
+{
+  "_metadata": {
+    "task": "Task 5 — Chaos Scenario Explanations",
+    "scenarioCount": 30,
+    "note": "Historical examples are used carefully. Some entries explicitly identify an analogous public incident or a representative production pattern rather than claiming an exact trigger where a verified postmortem was not established.",
+    "formatVersion": "1.0.0"
+  },
+  "scenarios": [
+    {
+      "id": "node_crash",
+      "name": "Node Crash",
+      "target": "compute-node",
+      "whatHappens": "1. One VM or Kubernetes node stops responding. 2. Requests in flight on that node fail or time out. 3. Health checks remove the node from rotation. 4. A scheduler or auto-scaling group starts replacement capacity. 5. Stateless workloads recover quickly; local-only state is lost.",
+      "userImpact": "Some requests fail briefly or become slower. A resilient stateless API should recover with little visible impact.",
+      "cascadeEffects": [
+        "Pods or processes on the node restart elsewhere",
+        "Queue messages being processed may be redelivered",
+        "A local cache becomes cold on replacement instances"
+      ],
+      "detectionTime": "Seconds to a few minutes when health checks, node heartbeats, and error-rate alerts are configured.",
+      "recoverySteps": [
+        "Remove the failed node from traffic",
+        "Confirm replacements are healthy",
+        "Reprocess idempotent work from queues",
+        "Investigate hardware, kernel, runtime, or capacity cause"
+      ],
+      "preventionStrategies": [
+        "Run multiple instances across nodes",
+        "Externalize durable state",
+        "Use readiness checks and auto-replacement",
+        "Make background processing idempotent"
+      ],
+      "realWorldExample": "Netflix popularized Chaos Monkey, which intentionally terminates compute instances to validate that services tolerate ordinary instance loss.",
+      "interviewAngle": "Start by saying an individual node failure should be a routine event. Explain statelessness, health checks, rescheduling, queue redelivery, and why local state changes the recovery story."
+    },
+    {
+      "id": "data_center_failure",
+      "name": "Data Center or Availability-Zone Failure",
+      "target": "availability-zone",
+      "whatHappens": "1. Power, cooling, network, or a shared facility dependency fails in one site. 2. Instances and zonal endpoints become unreachable. 3. Cross-zone load balancing shifts traffic. 4. Databases use replicas or failover mechanisms. 5. Capacity in surviving zones may become saturated.",
+      "userImpact": "Users may see elevated latency, partial errors, or an outage if the system was concentrated in one zone.",
+      "cascadeEffects": [
+        "Surviving zones receive sudden extra traffic",
+        "Database failover may increase latency",
+        "Queues and caches may lose zonal capacity",
+        "Recovery tooling may compete for constrained capacity"
+      ],
+      "detectionTime": "Usually within minutes through synthetic checks, zonal health signals, and traffic shifts.",
+      "recoverySteps": [
+        "Fail traffic away from the affected zone",
+        "Verify database writer and replica health",
+        "Increase or reserve capacity in surviving zones",
+        "Restore the zone gradually and rebalance"
+      ],
+      "preventionStrategies": [
+        "Deploy across independent zones",
+        "Keep capacity headroom",
+        "Test failover and failback",
+        "Avoid hidden zonal dependencies"
+      ],
+      "realWorldExample": "AWS publishes post-event summaries for regional and zonal service disruptions, including a Sydney Region event in June 2016, illustrating why applications should design across failure domains.",
+      "interviewAngle": "Discuss whether the requirement is multi-zone or multi-region. Explain zonal dependency inventory, headroom, database behavior, and tested failover."
+    },
+    {
+      "id": "disk_full",
+      "name": "Disk Full",
+      "target": "storage-volume",
+      "whatHappens": "1. A filesystem approaches 100% utilization. 2. Databases, brokers, or log agents cannot append safely. 3. Writes slow down or fail. 4. Retries add pressure. 5. A node may become unhealthy or corrupt temporary work if safeguards are weak.",
+      "userImpact": "Users may be unable to create or update data. Reads may remain available until dependent processes crash.",
+      "cascadeEffects": [
+        "Log loss or logging backpressure",
+        "Database transaction failures",
+        "Queue publishers blocked by unavailable broker storage",
+        "Automated recovery may fail because it also needs disk space"
+      ],
+      "detectionTime": "Minutes to hours depending on growth rate; alert well before exhaustion, commonly at multiple thresholds.",
+      "recoverySteps": [
+        "Stop non-essential writes and noisy logging",
+        "Free safe-to-delete temporary data or expand storage",
+        "Restart affected processes only after write capacity is restored",
+        "Validate database or broker integrity"
+      ],
+      "preventionStrategies": [
+        "Set storage alerts and forecasts",
+        "Use log rotation and retention",
+        "Apply lifecycle policies",
+        "Separate data, logs, and temporary files where appropriate"
+      ],
+      "realWorldExample": "The GitLab 2017 database incident is a broader operational reminder that storage operations, backups, and recovery procedures require safeguards and rehearsal; a disk-full game day should validate those controls without claiming it was the exact trigger of that incident.",
+      "interviewAngle": "Explain thresholds, retention, emergency cleanup, integrity checks, and why deleting arbitrary files during an incident is dangerous."
+    },
+    {
+      "id": "cpu_spike",
+      "name": "CPU Spike",
+      "target": "compute",
+      "whatHappens": "1. A code path, query, rule, or traffic pattern drives CPU toward saturation. 2. Request processing slows. 3. Queues grow and timeouts fire. 4. Retries amplify load. 5. Health checks may fail and remove capacity, worsening the spike.",
+      "userImpact": "Pages become slow, API calls time out, and some users receive errors.",
+      "cascadeEffects": [
+        "Thread or event-loop starvation",
+        "Autoscaling may react too slowly",
+        "Retry storms increase effective traffic",
+        "Monitoring and debugging can become slower under load"
+      ],
+      "detectionTime": "Seconds to minutes through CPU, latency, saturation, and error-rate alerts.",
+      "recoverySteps": [
+        "Rollback the triggering release or disable the expensive feature",
+        "Apply rate limits or shed load",
+        "Scale carefully if the workload can benefit",
+        "Profile the hot path after mitigation"
+      ],
+      "preventionStrategies": [
+        "Canary deployments",
+        "CPU budgets and benchmarks",
+        "Rate limits and backpressure",
+        "Kill switches for expensive dynamic rules"
+      ],
+      "realWorldExample": "Cloudflare's July 2, 2019 outage was caused by a WAF-related regular expression that backtracked enormously and exhausted CPU used for HTTP/HTTPS serving.",
+      "interviewAngle": "Connect CPU saturation to user latency and retry amplification. Mention rollback, load shedding, profiling, and progressive rollout."
+    },
+    {
+      "id": "memory_leak",
+      "name": "Memory Leak",
+      "target": "application-runtime",
+      "whatHappens": "1. An application retains objects that should be released. 2. Memory usage climbs over time. 3. Garbage collection becomes more frequent or expensive. 4. The process is killed by the runtime or operating system. 5. Restarts temporarily hide the issue before the cycle repeats.",
+      "userImpact": "Users see periodic latency spikes, failed requests, or reconnects as instances restart.",
+      "cascadeEffects": [
+        "Replacement instances become overloaded while one restarts",
+        "Cache warmth is lost",
+        "Queue processing slows",
+        "Auto-scaling may add cost without fixing the leak"
+      ],
+      "detectionTime": "Minutes to days depending on leak rate; detect through memory trend, GC metrics, and restart frequency.",
+      "recoverySteps": [
+        "Drain and restart affected instances",
+        "Roll back recent changes if correlated",
+        "Capture heap profiles or dumps safely",
+        "Fix retention path and add regression tests"
+      ],
+      "preventionStrategies": [
+        "Memory limits",
+        "Heap profiling in staging",
+        "Canary observation windows",
+        "Leak-detection dashboards and restart alerts"
+      ],
+      "realWorldExample": "Many large platforms have published runtime memory regressions over time. Use this as an honest representative production failure pattern unless your course links to a specific verified postmortem.",
+      "interviewAngle": "Distinguish mitigation from cure: restarts recover capacity, while profiling and code changes remove the leak. Mention GC telemetry and canaries."
+    },
+    {
+      "id": "network_partition",
+      "name": "Network Partition",
+      "target": "network",
+      "whatHappens": "1. Two healthy groups of nodes cannot communicate reliably. 2. Each side has an incomplete view of the system. 3. Replication stalls or leadership changes. 4. The system must choose whether to reject operations, serve stale data, or accept conflicting writes. 5. Reconciliation starts after connectivity returns.",
+      "userImpact": "Users may see stale reads, blocked writes, duplicate work, or region-specific behavior.",
+      "cascadeEffects": [
+        "Replica lag rises",
+        "Consensus groups may lose quorum",
+        "Retries cross healthy and unhealthy paths",
+        "Conflicting state may require repair"
+      ],
+      "detectionTime": "Seconds to minutes with cross-zone probes, quorum alerts, and replication-lag monitoring.",
+      "recoverySteps": [
+        "Isolate the unsafe partition",
+        "Preserve a single authoritative writer where required",
+        "Restore connectivity",
+        "Reconcile divergent state and audit data"
+      ],
+      "preventionStrategies": [
+        "Use quorum-aware systems",
+        "Define CAP behavior per operation",
+        "Fence stale leaders",
+        "Test partitions and recovery"
+      ],
+      "realWorldExample": "GitHub's October 2018 incident included a network partition that affected database replication and required careful recovery, making it a useful public case study for failover safety.",
+      "interviewAngle": "Discuss CAP behavior, quorum, fencing, stale leaders, reconciliation, and why browsing can remain available while risky writes pause."
+    },
+    {
+      "id": "packet_loss",
+      "name": "Packet Loss",
+      "target": "network",
+      "whatHappens": "1. Some packets are dropped between clients, proxies, or services. 2. TCP retransmits and request latency rises. 3. Timeouts fire intermittently. 4. Clients retry. 5. Effective throughput falls even when bandwidth graphs appear normal.",
+      "userImpact": "Users experience sporadic slowness, failed uploads, audio/video glitches, or reconnects.",
+      "cascadeEffects": [
+        "Retry volume increases",
+        "Queues grow behind slow consumers",
+        "Health checks may flap",
+        "Tail latency worsens before average latency looks alarming"
+      ],
+      "detectionTime": "Minutes if monitoring includes retransmits, loss, tail latency, and synthetic tests from multiple locations.",
+      "recoverySteps": [
+        "Identify affected path or zone",
+        "Reroute traffic where possible",
+        "Reduce payload size or degrade quality",
+        "Tune timeouts only after understanding the path"
+      ],
+      "preventionStrategies": [
+        "Multi-path routing and zonal isolation",
+        "Network telemetry",
+        "Resumable uploads",
+        "Adaptive bitrate for media"
+      ],
+      "realWorldExample": "Interactive communication and streaming platforms routinely design for lossy networks; adaptive bitrate and reconnect logic are practical responses even when a public outage report is not the source of the lesson.",
+      "interviewAngle": "Explain why packet loss is a tail-latency problem, not only a bandwidth problem. Mention retries, adaptive quality, and resumable transfer."
+    },
+    {
+      "id": "latency_spike",
+      "name": "Latency Spike",
+      "target": "dependency",
+      "whatHappens": "1. A dependency responds more slowly than normal. 2. In-flight requests accumulate. 3. Worker threads, event-loop tasks, or connection pools fill. 4. Upstream timeouts and retries increase load. 5. The originally slow dependency receives even more pressure.",
+      "userImpact": "Users see slow pages, timeouts, and inconsistent success depending on the request path.",
+      "cascadeEffects": [
+        "Connection pools exhaust",
+        "Circuit breakers open",
+        "Queue age increases",
+        "Autoscaling may amplify calls to the slow dependency"
+      ],
+      "detectionTime": "Seconds to minutes when p95 and p99 latency, pool wait time, and timeout rates are monitored.",
+      "recoverySteps": [
+        "Apply timeouts and circuit breakers",
+        "Disable optional dependency calls",
+        "Serve cached or degraded responses",
+        "Investigate the dependency after stabilizing traffic"
+      ],
+      "preventionStrategies": [
+        "Latency budgets",
+        "Bulkheads",
+        "Bounded retries with jitter",
+        "Caching and fallbacks"
+      ],
+      "realWorldExample": "Large public incidents often show latency rising before errors dominate. Google SRE guidance emphasizes symptom-based alerting so teams react to user-visible degradation early.",
+      "interviewAngle": "Use this scenario to discuss tail latency, timeout budgets, circuit breakers, bulkheads, and graceful degradation."
+    },
+    {
+      "id": "dns_failure",
+      "name": "DNS Failure",
+      "target": "dns",
+      "whatHappens": "1. Authoritative DNS, resolver access, or routing to DNS servers fails. 2. Cached records continue working until TTL expiry. 3. New lookups fail. 4. Clients cannot locate endpoints even if servers are healthy. 5. Recovery may be slowed if internal tools depend on the same DNS path.",
+      "userImpact": "Users cannot open the application or experience partial failures as caches expire at different times.",
+      "cascadeEffects": [
+        "Authentication callbacks fail",
+        "Service discovery fails",
+        "Monitoring from some networks becomes blind",
+        "Recovery tools may become unreachable"
+      ],
+      "detectionTime": "Minutes, depending on TTLs and resolver caches; synthetic resolution probes provide early evidence.",
+      "recoverySteps": [
+        "Restore authoritative reachability or resolver path",
+        "Use alternate management access",
+        "Verify records and route advertisements",
+        "Allow caches to repopulate"
+      ],
+      "preventionStrategies": [
+        "Redundant DNS providers or resilient authoritative service",
+        "Reasonable TTLs",
+        "Out-of-band recovery access",
+        "Dependency mapping"
+      ],
+      "realWorldExample": "Meta's October 4, 2021 outage is a major example: backbone disruption caused DNS locations to withdraw BGP advertisements, making DNS servers unreachable even though they were still operational.",
+      "interviewAngle": "Explain that DNS is part of the production critical path. Discuss TTL trade-offs, authoritative redundancy, BGP reachability, and out-of-band access."
+    },
+    {
+      "id": "tls_cert_expiry",
+      "name": "TLS Certificate Expiry",
+      "target": "certificate",
+      "whatHappens": "1. A certificate reaches its expiry time. 2. Clients reject the connection during TLS validation. 3. Health checks and internal service calls may fail. 4. Retries do not help. 5. Manual replacement becomes urgent if renewal automation did not work.",
+      "userImpact": "Users see browser security errors, failed API calls, or service-to-service outages.",
+      "cascadeEffects": [
+        "Webhooks fail",
+        "Mobile clients may be harder to update if pinning is involved",
+        "Monitoring may fail if it uses the same endpoint",
+        "Support traffic increases quickly"
+      ],
+      "detectionTime": "Immediate at expiry, but prevention alerts should trigger weeks in advance.",
+      "recoverySteps": [
+        "Issue and deploy a valid certificate",
+        "Verify full certificate chain and hostname coverage",
+        "Reload affected proxies safely",
+        "Confirm automated renewal path"
+      ],
+      "preventionStrategies": [
+        "Automated renewal",
+        "Expiry monitoring at multiple horizons",
+        "Staging validation",
+        "Ownership for every certificate and domain"
+      ],
+      "realWorldExample": "Expired certificates have caused widely visible SaaS outages, including a Microsoft Teams authentication issue reported in 2020. The enduring lesson is to automate renewal and alert before expiry.",
+      "interviewAngle": "Treat certificates as expiring production dependencies. Mention automation, monitoring, chain validation, pinning risks, and reload procedures."
+    },
+    {
+      "id": "traffic_surge_10x",
+      "name": "Traffic Surge 10x",
+      "target": "traffic",
+      "whatHappens": "1. Legitimate demand rises tenfold. 2. Edge, application, cache, database, queue, and third-party limits are tested simultaneously. 3. Auto-scaling adds stateless capacity. 4. Shared dependencies saturate. 5. Users retry if the experience degrades.",
+      "userImpact": "Users may see slow pages, rejected requests, unavailable inventory checks, or delayed background work.",
+      "cascadeEffects": [
+        "Cache miss rate may rise",
+        "Database connections exhaust",
+        "Queue backlog grows",
+        "Third-party quotas are exceeded"
+      ],
+      "detectionTime": "Seconds to minutes through request rate, saturation, queue age, and business-conversion monitoring.",
+      "recoverySteps": [
+        "Prioritize critical paths",
+        "Apply admission control and queueing",
+        "Scale safe stateless capacity",
+        "Disable expensive optional features"
+      ],
+      "preventionStrategies": [
+        "Capacity tests",
+        "Autoscaling with headroom",
+        "Cache warming",
+        "Per-tenant quotas",
+        "Degraded-mode design"
+      ],
+      "realWorldExample": "Launches, sports events, and ticket sales repeatedly produce legitimate surges. AWS architecture guidance emphasizes auto-scaling and decoupled systems for resilient workloads.",
+      "interviewAngle": "Separate legitimate surge from attack traffic. Explain bottleneck sequence, admission control, queue buffering, and business-priority degradation."
+    },
+    {
+      "id": "ddos_flood",
+      "name": "DDoS Flood",
+      "target": "edge-network",
+      "whatHappens": "1. Attackers generate traffic from many sources. 2. Network bandwidth, connection tables, WAF capacity, or application paths become saturated. 3. Origin servers and downstream stores receive pressure. 4. Legitimate requests compete with malicious traffic. 5. Emergency controls are applied.",
+      "userImpact": "Users cannot reach the service or experience severe latency and errors.",
+      "cascadeEffects": [
+        "Origin bandwidth saturation",
+        "Database overload from expensive requests",
+        "Autoscaling cost spike",
+        "Alert floods obscure the primary signal"
+      ],
+      "detectionTime": "Seconds to minutes using edge telemetry, anomaly detection, and user-impact alerts.",
+      "recoverySteps": [
+        "Engage edge DDoS protection",
+        "Block or challenge suspicious traffic",
+        "Rate-limit expensive endpoints",
+        "Protect origin access and preserve critical paths"
+      ],
+      "preventionStrategies": [
+        "CDN and edge protection",
+        "WAF and bot controls",
+        "Origin shielding",
+        "Rate limits",
+        "Runbooks and emergency contacts"
+      ],
+      "realWorldExample": "Major edge providers publish DDoS trend reports and mitigation guidance. Use this scenario to teach layered defense rather than claiming application autoscaling alone can absorb a flood.",
+      "interviewAngle": "Discuss volumetric versus application-layer attacks, edge filtering, origin protection, cost controls, and fail-safe degraded modes."
+    },
+    {
+      "id": "thundering_herd",
+      "name": "Thundering Herd",
+      "target": "cache-or-lock",
+      "whatHappens": "1. A popular cached item expires or a locked resource becomes available. 2. Many callers wake or miss simultaneously. 3. They all recompute or fetch the same data. 4. The source database or dependency becomes overloaded. 5. More requests time out and retry.",
+      "userImpact": "A popular page slows or fails exactly when demand is highest.",
+      "cascadeEffects": [
+        "Database CPU rises",
+        "Connection pools exhaust",
+        "Retry storm forms",
+        "Cache recovery takes longer"
+      ],
+      "detectionTime": "Seconds through cache miss ratio, origin request rate, and key-level hotspot metrics.",
+      "recoverySteps": [
+        "Coalesce duplicate work",
+        "Serve stale data where safe",
+        "Repopulate cache once",
+        "Add temporary rate limiting"
+      ],
+      "preventionStrategies": [
+        "TTL jitter",
+        "Single-flight request coalescing",
+        "Stale-while-revalidate",
+        "Cache warming"
+      ],
+      "realWorldExample": "Cache stampedes are a standard production failure mode across large web systems; Redis-oriented designs commonly include jitter and request coalescing to mitigate them.",
+      "interviewAngle": "Explain why cache expiry is a load event. Mention hot keys, jitter, stale serving, single flight, and source-of-truth protection."
+    },
+    {
+      "id": "retry_storm",
+      "name": "Retry Storm",
+      "target": "client-and-service-retries",
+      "whatHappens": "1. A dependency slows or fails. 2. Callers retry quickly. 3. Traffic multiplies beyond the original request rate. 4. The dependency has less opportunity to recover. 5. Upstream systems also time out and add their own retries.",
+      "userImpact": "Users see prolonged errors even after the original fault could have recovered.",
+      "cascadeEffects": [
+        "CPU and connection pools saturate",
+        "Queues duplicate work",
+        "Third-party rate limits trigger",
+        "Incident duration increases"
+      ],
+      "detectionTime": "Seconds to minutes through retry counters, request amplification ratio, and dependency saturation.",
+      "recoverySteps": [
+        "Reduce retry attempts",
+        "Add exponential backoff and jitter",
+        "Open circuit breakers",
+        "Shed optional traffic"
+      ],
+      "preventionStrategies": [
+        "Retry budgets",
+        "Idempotency keys",
+        "Backoff with jitter",
+        "Circuit breakers",
+        "Load tests with failure injection"
+      ],
+      "realWorldExample": "Distributed outage reviews frequently show retries amplifying partial failure. Google SRE literature treats overload control and actionable monitoring as essential operational concerns.",
+      "interviewAngle": "State that retries are not free. Discuss idempotency, retry budgets, jitter, circuit breakers, and different handling for reads versus writes."
+    },
+    {
+      "id": "thread_pool_exhaustion",
+      "name": "Thread Pool Exhaustion",
+      "target": "application-runtime",
+      "whatHappens": "1. Slow downstream calls occupy worker threads. 2. New requests wait for a thread. 3. Queue time grows. 4. Health checks may wait behind user traffic. 5. The service looks alive but cannot do useful work.",
+      "userImpact": "Requests hang or time out even if CPU usage is not high.",
+      "cascadeEffects": [
+        "Load balancer may keep sending traffic",
+        "Connection pools remain occupied",
+        "Retries amplify waiting work",
+        "One dependency failure spreads to unrelated endpoints"
+      ],
+      "detectionTime": "Seconds to minutes using active-thread count, queue wait time, and endpoint latency.",
+      "recoverySteps": [
+        "Fail fast with timeouts",
+        "Apply bulkheads per dependency or endpoint",
+        "Reduce concurrency",
+        "Degrade optional features"
+      ],
+      "preventionStrategies": [
+        "Bounded pools",
+        "Async I/O where appropriate",
+        "Timeout budgets",
+        "Bulkheads and circuit breakers"
+      ],
+      "realWorldExample": "This is a common microservice outage pattern: latency in one downstream can consume every worker and spread failure. It is best taught as a representative mechanism unless a verified company postmortem is linked.",
+      "interviewAngle": "Explain why low CPU does not imply health. Discuss pool queues, bulkheads, timeout budgets, and separate health-check resources."
+    },
+    {
+      "id": "deadlock",
+      "name": "Deadlock",
+      "target": "database-or-application-locking",
+      "whatHappens": "1. Two operations each hold a lock the other needs. 2. Progress stops until a detector aborts one operation or a timeout fires. 3. Clients retry. 4. Throughput falls and lock queues grow. 5. Repeated ordering patterns can recreate the deadlock.",
+      "userImpact": "Some updates fail or hang; users may see conflict errors or slow transactions.",
+      "cascadeEffects": [
+        "Database connection pool fills",
+        "Retries recreate lock contention",
+        "Queue consumers slow down",
+        "Latency spreads to unrelated transactions"
+      ],
+      "detectionTime": "Seconds to minutes with deadlock logs, lock-wait metrics, and transaction latency alerts.",
+      "recoverySteps": [
+        "Abort and retry safely with backoff",
+        "Identify lock ordering",
+        "Shorten transactions",
+        "Reduce contention on hot rows"
+      ],
+      "preventionStrategies": [
+        "Consistent lock ordering",
+        "Short transactions",
+        "Optimistic concurrency where suitable",
+        "Deadlock monitoring"
+      ],
+      "realWorldExample": "Relational databases routinely detect and abort deadlocks in production workloads. Treat this as an expected failure to handle, not an impossible edge case.",
+      "interviewAngle": "Discuss database deadlock detection, idempotent retries, lock ordering, hot rows, and why longer transactions increase risk."
+    },
+    {
+      "id": "gc_pause",
+      "name": "GC Pause",
+      "target": "application-runtime",
+      "whatHappens": "1. The runtime pauses application work for garbage collection. 2. Request latency spikes. 3. Heartbeats and health checks may be delayed. 4. Upstreams retry or remove the instance. 5. Repeated pauses reduce effective capacity.",
+      "userImpact": "Users experience intermittent high latency or timeouts.",
+      "cascadeEffects": [
+        "Leader-election instability",
+        "Load-balancer flapping",
+        "Queue consumer lag",
+        "Retry amplification"
+      ],
+      "detectionTime": "Seconds when pause duration, p99 latency, heap occupancy, and GC metrics are captured.",
+      "recoverySteps": [
+        "Reduce traffic to affected instances",
+        "Tune heap and collector only after profiling",
+        "Remove allocation hotspots",
+        "Roll back regressions"
+      ],
+      "preventionStrategies": [
+        "Runtime metrics",
+        "Allocation profiling",
+        "Realistic load tests",
+        "Heap sizing and memory limits"
+      ],
+      "realWorldExample": "Large JVM-based systems have long treated GC pauses as a source of tail latency. The practical lesson is to observe pause time directly rather than infer it only from CPU.",
+      "interviewAngle": "Connect GC behavior to tail latency, heartbeats, and capacity. Explain profiling before tuning."
+    },
+    {
+      "id": "primary_db_failure",
+      "name": "Primary Database Failure",
+      "target": "database",
+      "whatHappens": "1. The database writer crashes or becomes unreachable. 2. Writes fail or block. 3. A failover controller evaluates replica health and lag. 4. A safe replica is promoted. 5. Applications reconnect and queued work resumes.",
+      "userImpact": "Writes fail temporarily; reads may continue if replicas remain healthy. Some recent writes may require reconciliation depending on replication mode.",
+      "cascadeEffects": [
+        "Connection pools churn",
+        "Application retries increase load",
+        "Replica promotion may expose stale state",
+        "Queues accumulate work"
+      ],
+      "detectionTime": "Seconds to minutes depending on health checks and guarded failover.",
+      "recoverySteps": [
+        "Stop unsafe writes",
+        "Promote a verified replica or restore the writer",
+        "Update routing",
+        "Reconcile uncertain transactions",
+        "Review data integrity"
+      ],
+      "preventionStrategies": [
+        "Replicas and automated guarded failover",
+        "Backups and point-in-time recovery",
+        "Idempotent write APIs",
+        "Failover drills"
+      ],
+      "realWorldExample": "GitHub has published database-incident material that illustrates why promotion, replication lag, and recovery procedures require careful operational control.",
+      "interviewAngle": "Discuss RPO, RTO, synchronous versus asynchronous replication, connection recovery, uncertain writes, and fencing the old primary."
+    },
+    {
+      "id": "replication_lag",
+      "name": "Replication Lag",
+      "target": "database-replica",
+      "whatHappens": "1. Replica apply rate falls behind the primary write rate. 2. Read replicas serve stale data. 3. Failover becomes riskier because the freshest replica may still be behind. 4. Backlog grows. 5. Storage or network constraints may worsen recovery time.",
+      "userImpact": "Users may not see recent updates or may receive inconsistent views across requests.",
+      "cascadeEffects": [
+        "Read-after-write bugs",
+        "Unsafe failover decisions",
+        "Analytics freshness drops",
+        "Replica storage grows due to retained logs"
+      ],
+      "detectionTime": "Minutes or faster with lag-in-seconds, log-position, and apply-rate monitoring.",
+      "recoverySteps": [
+        "Route freshness-sensitive reads to primary",
+        "Reduce heavy replica queries",
+        "Add or repair replica capacity",
+        "Delay promotion until risk is understood"
+      ],
+      "preventionStrategies": [
+        "Lag alerts",
+        "Read-routing policy",
+        "Replica capacity planning",
+        "Backpressure on large write bursts"
+      ],
+      "realWorldExample": "Replication lag is a recurring issue in database incident reports, including public recovery discussions from large platforms such as GitHub.",
+      "interviewAngle": "Explain that read scaling introduces freshness decisions. Cover read-after-write routing, lag metrics, promotion safety, and product tolerance."
+    },
+    {
+      "id": "connection_pool_exhausted",
+      "name": "Connection Pool Exhausted",
+      "target": "connection-pool",
+      "whatHappens": "1. All pooled connections are busy or broken. 2. New requests wait for a connection. 3. Latency rises and timeouts fire. 4. Retries add concurrency. 5. The database may also receive reconnection churn.",
+      "userImpact": "Users see slow or failed operations even if the database CPU is not fully saturated.",
+      "cascadeEffects": [
+        "Thread pools fill",
+        "Queue consumers stall",
+        "Health endpoints may fail",
+        "Database login overhead increases"
+      ],
+      "detectionTime": "Seconds to minutes using pool active count, wait time, timeout count, and database session metrics.",
+      "recoverySteps": [
+        "Reduce concurrency",
+        "Cancel or optimize long queries",
+        "Restore healthy connections",
+        "Apply backpressure"
+      ],
+      "preventionStrategies": [
+        "Bounded pools",
+        "Fleet-wide connection budgets",
+        "Query timeouts",
+        "Database proxies where appropriate"
+      ],
+      "realWorldExample": "Serverless and rapidly autoscaled systems commonly expose connection-pool mistakes because compute can scale faster than a relational database accepts sessions.",
+      "interviewAngle": "Do the fleet-wide math. Explain pool wait metrics, long transactions, autoscaling interactions, and backpressure."
+    },
+    {
+      "id": "cache_miss_storm",
+      "name": "Cache Miss Storm",
+      "target": "cache",
+      "whatHappens": "1. Cache entries disappear, expire together, or become unreachable. 2. Requests fall through to the source database. 3. Source latency rises. 4. More calls time out. 5. Cache refill slows and the outage sustains itself.",
+      "userImpact": "Popular pages or APIs become slow or unavailable.",
+      "cascadeEffects": [
+        "Database overload",
+        "Connection exhaustion",
+        "Retry storm",
+        "Higher latency for uncached unrelated queries"
+      ],
+      "detectionTime": "Seconds through hit ratio, eviction, cache error rate, and origin-load dashboards.",
+      "recoverySteps": [
+        "Serve stale data where safe",
+        "Rate-limit cache rebuilds",
+        "Coalesce duplicate loads",
+        "Protect the source database"
+      ],
+      "preventionStrategies": [
+        "TTL jitter",
+        "Stale-while-revalidate",
+        "Warm critical keys",
+        "Capacity planning",
+        "Circuit breakers"
+      ],
+      "realWorldExample": "Cache stampede and cold-cache events are common enough that major cache documentation and system-design guidance treat them as standard resilience concerns.",
+      "interviewAngle": "Differentiate a normal miss from a correlated miss storm. Explain stale serving, warming, single-flight, and source protection."
+    },
+    {
+      "id": "cache_eviction",
+      "name": "Cache Eviction Pressure",
+      "target": "cache-memory",
+      "whatHappens": "1. Cache memory reaches its limit. 2. Eviction removes keys according to policy. 3. Hit ratio drops. 4. Origin reads rise. 5. Hot data may churn if capacity or key design is poor.",
+      "userImpact": "Users see gradually increasing latency and possibly errors if the source database saturates.",
+      "cascadeEffects": [
+        "Database load increases",
+        "Rate-limiter keys may disappear unexpectedly if mixed carelessly",
+        "Session behavior may degrade",
+        "Hot-key churn wastes CPU"
+      ],
+      "detectionTime": "Minutes to hours through memory, evictions/sec, hit ratio, and origin traffic.",
+      "recoverySteps": [
+        "Increase capacity or reduce cached payloads",
+        "Separate critical key classes",
+        "Review TTL and eviction policy",
+        "Remove low-value keys"
+      ],
+      "preventionStrategies": [
+        "Capacity alerts",
+        "Memory budgets",
+        "Separate caches by workload",
+        "Appropriate TTLs and eviction policy"
+      ],
+      "realWorldExample": "Redis operations guidance emphasizes monitoring latency and memory behavior because command mix, eviction, and resource pressure affect performance.",
+      "interviewAngle": "Discuss cache classes, eviction policy, TTLs, memory economics, and why mixing sessions, rate limits, and disposable cache entries can be risky."
+    },
+    {
+      "id": "queue_full",
+      "name": "Queue Full",
+      "target": "message-queue",
+      "whatHappens": "1. Producers create messages faster than consumers can process them or broker storage reaches a limit. 2. Queue depth rises. 3. Publish operations slow or reject work. 4. Disk and memory pressure increase. 5. Recovery takes time even after input drops.",
+      "userImpact": "Users may see delayed work, rejected submissions, or stale processing status.",
+      "cascadeEffects": [
+        "Broker storage exhaustion",
+        "Consumer autoscaling costs rise",
+        "Downstream services receive delayed bursts",
+        "Retries duplicate messages"
+      ],
+      "detectionTime": "Minutes or sooner using queue depth, oldest-message age, publish failures, and broker storage metrics.",
+      "recoverySteps": [
+        "Apply admission control",
+        "Scale consumers only if downstream capacity permits",
+        "Pause low-priority producers",
+        "Drain safely and investigate bottleneck"
+      ],
+      "preventionStrategies": [
+        "Queue capacity limits",
+        "Oldest-age alerts",
+        "Priority separation",
+        "Backpressure",
+        "Load testing"
+      ],
+      "realWorldExample": "RabbitMQ documentation explains acknowledgement, prefetch, durability, and queue behavior because broker safety and consumer capacity must be designed together.",
+      "interviewAngle": "Explain queue as a buffer, not infinite storage. Mention oldest age, downstream capacity, admission control, and priority lanes."
+    },
+    {
+      "id": "consumer_lag",
+      "name": "Consumer Lag",
+      "target": "stream-consumer",
+      "whatHappens": "1. Consumers process events slower than producers publish them. 2. Offsets fall behind. 3. Derived views, notifications, or analytics become stale. 4. Retention pressure grows. 5. Catch-up traffic can overload downstream systems.",
+      "userImpact": "Users may see delayed notifications, stale feeds, or slow workflow completion.",
+      "cascadeEffects": [
+        "Projection freshness declines",
+        "Retention windows may be exceeded",
+        "Autoscaling increases downstream load",
+        "Operational dashboards become misleading"
+      ],
+      "detectionTime": "Minutes using consumer lag, event age, processing rate, and error metrics.",
+      "recoverySteps": [
+        "Find whether lag is caused by capacity, poison events, or dependency latency",
+        "Scale safely",
+        "Pause optional consumers",
+        "Rebuild or replay carefully"
+      ],
+      "preventionStrategies": [
+        "Lag alerts",
+        "Partition planning",
+        "Idempotent replay",
+        "Consumer backpressure",
+        "DLQs for bad events"
+      ],
+      "realWorldExample": "Kafka-style systems make consumer lag a first-class operational signal because retention and replay decouple producer and consumer pace.",
+      "interviewAngle": "Discuss partitions, consumer groups, lag in records versus time, catch-up safety, and why scaling consumers beyond partitions has limits."
+    },
+    {
+      "id": "poison_message",
+      "name": "Poison Message",
+      "target": "message-queue",
+      "whatHappens": "1. One malformed or unsupported message repeatedly fails processing. 2. The broker redelivers it. 3. The consumer fails again. 4. Healthy work may be blocked or repeatedly delayed. 5. Retry traffic hides the real issue.",
+      "userImpact": "Specific work remains incomplete; broader processing may slow if the poison item blocks a partition or queue.",
+      "cascadeEffects": [
+        "Consumer crash loop",
+        "Lag growth",
+        "Repeated external side effects if processing is not idempotent",
+        "Alert noise"
+      ],
+      "detectionTime": "Minutes through retry counters, repeated message IDs, DLQ metrics, and consumer error logs.",
+      "recoverySteps": [
+        "Stop infinite retries",
+        "Move the message to a DLQ or quarantine",
+        "Process healthy work",
+        "Fix parser or schema compatibility",
+        "Replay safely"
+      ],
+      "preventionStrategies": [
+        "Retry limits",
+        "DLQs",
+        "Schema validation",
+        "Versioned message contracts",
+        "Idempotent consumers"
+      ],
+      "realWorldExample": "RabbitMQ documents dead-letter concepts and acknowledgements because malformed or repeatedly rejected messages need a deliberate path.",
+      "interviewAngle": "Mention retry limit, quarantine, schema evolution, observability, and manual replay. Infinite retry is not resilience."
+    },
+    {
+      "id": "third_party_api_down",
+      "name": "Third-Party API Down",
+      "target": "external-dependency",
+      "whatHappens": "1. A vendor API returns errors or times out. 2. Application threads and connections wait. 3. Retries add pressure. 4. User flows that depend synchronously on the vendor degrade. 5. Background jobs accumulate.",
+      "userImpact": "Users see partial feature failure, delayed processing, or checkout problems depending on dependency criticality.",
+      "cascadeEffects": [
+        "Circuit breakers open",
+        "Queues grow",
+        "Support traffic increases",
+        "Fallback services may become overloaded"
+      ],
+      "detectionTime": "Seconds to minutes through dependency-specific latency, errors, and synthetic checks.",
+      "recoverySteps": [
+        "Open circuit breaker",
+        "Use cached or degraded behavior",
+        "Queue safe work for later",
+        "Communicate vendor impact",
+        "Reconcile after recovery"
+      ],
+      "preventionStrategies": [
+        "Timeouts",
+        "Circuit breakers",
+        "Fallbacks",
+        "Provider abstraction where justified",
+        "Async workflows"
+      ],
+      "realWorldExample": "External-provider incidents affect even well-operated applications. Payment and email integrations commonly need retry, reconciliation, and degraded-mode planning.",
+      "interviewAngle": "Classify dependency criticality. Discuss timeout budgets, circuit breakers, async handoff, reconciliation, and whether a fallback is genuinely safe."
+    },
+    {
+      "id": "auth_service_down",
+      "name": "Auth Service Down",
+      "target": "identity-service",
+      "whatHappens": "1. The identity provider or token-introspection dependency becomes unavailable. 2. New logins and token refresh fail. 3. Existing sessions may continue if local validation is possible. 4. Services with synchronous auth dependency fail. 5. Emergency access becomes important.",
+      "userImpact": "Users may be unable to sign in or perform protected operations. Existing users may have partial access until tokens expire.",
+      "cascadeEffects": [
+        "Support and admin tools may also fail",
+        "Service-to-service calls can break",
+        "Recovery work may be blocked by the same identity dependency",
+        "Retry traffic increases"
+      ],
+      "detectionTime": "Minutes through login success, token-refresh errors, and dependency checks.",
+      "recoverySteps": [
+        "Preserve safe locally validated sessions where policy permits",
+        "Use break-glass operational access",
+        "Restore provider connectivity",
+        "Rotate or repair configuration carefully"
+      ],
+      "preventionStrategies": [
+        "Short-lived but locally verifiable tokens where appropriate",
+        "Break-glass accounts",
+        "Redundant identity paths",
+        "Dependency isolation"
+      ],
+      "realWorldExample": "Meta's 2021 outage affected internal recovery access as network dependencies failed, illustrating why operational access paths must not depend entirely on the impaired production path.",
+      "interviewAngle": "Discuss fail-open versus fail-closed by operation, token validation strategy, refresh behavior, and out-of-band recovery access."
+    },
+    {
+      "id": "config_drift",
+      "name": "Configuration Drift",
+      "target": "configuration",
+      "whatHappens": "1. Instances, regions, or environments no longer share the intended configuration. 2. Behavior differs unpredictably. 3. A deployment or failover exposes the mismatch. 4. Troubleshooting becomes difficult because code versions appear identical. 5. Manual fixes create further divergence.",
+      "userImpact": "Only some users or regions experience failures, making the incident confusing and intermittent.",
+      "cascadeEffects": [
+        "Security policy inconsistencies",
+        "Failover region does not work",
+        "Monitoring labels become misleading",
+        "Rollback does not restore behavior"
+      ],
+      "detectionTime": "Hours unless configuration state is continuously compared and audited.",
+      "recoverySteps": [
+        "Identify authoritative configuration",
+        "Diff affected environments",
+        "Roll back or converge safely",
+        "Remove manual mutations"
+      ],
+      "preventionStrategies": [
+        "Infrastructure as code",
+        "Versioned config",
+        "Drift detection",
+        "Change review",
+        "Gradual rollout"
+      ],
+      "realWorldExample": "Cloudflare's November 18, 2025 outage was triggered by a database permission change that caused an oversized feature file to propagate across its network, illustrating the blast radius of configuration-driven systems.",
+      "interviewAngle": "Discuss versioned configuration, validation, staged rollout, kill switches, audit logs, and how configuration can be more dangerous than code."
+    },
+    {
+      "id": "clock_skew",
+      "name": "Clock Skew",
+      "target": "time-synchronization",
+      "whatHappens": "1. Node clocks diverge. 2. Token expiry, certificate checks, leases, ordering, and logs become inconsistent. 3. Some requests appear early or late. 4. Distributed traces become difficult to read. 5. Leadership or lock behavior may become unsafe in poorly designed systems.",
+      "userImpact": "Users may see intermittent authentication failures, duplicate processing, or inconsistent timestamps.",
+      "cascadeEffects": [
+        "JWT validation fails unexpectedly",
+        "Scheduled jobs run at wrong times",
+        "Log timelines mislead responders",
+        "Lease-based coordination behaves poorly"
+      ],
+      "detectionTime": "Minutes to hours through NTP offset monitoring, authentication error patterns, and clock-health alerts.",
+      "recoverySteps": [
+        "Restore time synchronization",
+        "Avoid unsafe lease assumptions",
+        "Re-evaluate affected tokens or jobs",
+        "Correct timelines during incident review"
+      ],
+      "preventionStrategies": [
+        "NTP or equivalent synchronization",
+        "Offset alerts",
+        "Use monotonic clocks for durations",
+        "Design ordering with logical sequence where needed"
+      ],
+      "realWorldExample": "Clock skew is a classic distributed-systems failure mode even when it does not produce a famous public outage. It regularly appears in authentication, certificate, and lease troubleshooting.",
+      "interviewAngle": "Explain wall clock versus monotonic time, token leeway, logs, leases, and why distributed ordering should not rely only on timestamps."
+    },
+    {
+      "id": "split_brain",
+      "name": "Split Brain",
+      "target": "distributed-database-or-cluster",
+      "whatHappens": "1. Network or failover mistakes allow two nodes to believe they are primary. 2. Both accept conflicting writes. 3. Data diverges. 4. Clients observe inconsistent state. 5. Recovery requires fencing one writer and reconciling changes.",
+      "userImpact": "Users may see lost updates, duplicate operations, or contradictory data. Financial and inventory impact can be severe.",
+      "cascadeEffects": [
+        "Replicas diverge",
+        "Caches contain conflicting values",
+        "Downstream events duplicate or contradict",
+        "Manual repair becomes necessary"
+      ],
+      "detectionTime": "Seconds to hours depending on quorum controls and conflict monitoring.",
+      "recoverySteps": [
+        "Fence one writer immediately",
+        "Stop unsafe mutations",
+        "Preserve both histories",
+        "Reconcile with domain-aware rules",
+        "Restore guarded topology"
+      ],
+      "preventionStrategies": [
+        "Quorum-based promotion",
+        "Fencing tokens",
+        "Single-writer guarantees where required",
+        "Failover tests",
+        "Idempotent downstreams"
+      ],
+      "realWorldExample": "GitHub's public database incident discussions are useful for understanding why failover safety, topology awareness, and cautious recovery matter during partitions.",
+      "interviewAngle": "Treat split brain as a correctness emergency. Discuss quorum, fencing, promotion rules, reconciliation, idempotency, and why availability should not override unsafe money-moving writes."
+    }
+  ]
+}

@@ -15,6 +15,12 @@ const TABS = [
   { path: '/settings',          label: 'Settings' },
 ];
 
+const LEARN_ITEMS = [
+  { path: '/learn',      label: '📚 Learning Paths' },
+  { path: '/concepts',   label: '🧪 CS Concepts' },
+  { path: '/interview',  label: '🎯 Interview Mode' },
+];
+
 interface NavbarProps {
   onSave?: () => Promise<void>;
   onSimulationStart?: () => void;
@@ -26,9 +32,10 @@ export function Navbar({ onSave, onSimulationStart, simulationRunning = false }:
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  const [saving,       setSaving]       = useState(false);
-  const [saved,        setSaved]        = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [saved,         setSaved]         = useState(false);
+  const [showUserMenu,  setShowUserMenu]  = useState(false);
+  const [showLearnMenu, setShowLearnMenu] = useState(false);
 
   const initials = user
     ? user.username.slice(0, 2).toUpperCase()
@@ -84,6 +91,81 @@ export function Navbar({ onSave, onSimulationStart, simulationRunning = false }:
             </button>
           );
         })}
+
+        {/* Learn dropdown */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
+          {showLearnMenu && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 199 }}
+              onClick={() => setShowLearnMenu(false)}
+            />
+          )}
+          <button
+            onClick={() => setShowLearnMenu(v => !v)}
+            style={{
+              ...styles.tab,
+              fontWeight: LEARN_ITEMS.some(i => location.pathname.startsWith(i.path)) ? 500 : 400,
+              color: LEARN_ITEMS.some(i => location.pathname.startsWith(i.path)) ? 'var(--text)' : 'var(--text-dim)',
+              gap: 4,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+            onMouseLeave={e => {
+              if (!LEARN_ITEMS.some(i => location.pathname.startsWith(i.path))) {
+                e.currentTarget.style.color = 'var(--text-dim)';
+              }
+            }}
+          >
+            Learn
+            <span style={{ fontSize: 9, opacity: 0.7 }}>▾</span>
+            {LEARN_ITEMS.some(i => location.pathname.startsWith(i.path)) && (
+              <span style={styles.activeBar} />
+            )}
+          </button>
+
+          {showLearnMenu && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 2px)', left: 0,
+              zIndex: 200, minWidth: 180,
+              background: 'var(--sidebar-bg)', border: '1px solid var(--border)',
+              borderRadius: 10, padding: 5,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+            }}>
+              {LEARN_ITEMS.map(item => {
+                const isActive = location.pathname.startsWith(item.path);
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => { navigate(item.path); setShowLearnMenu(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '8px 12px', borderRadius: 6,
+                      background: isActive ? 'rgba(124,58,237,0.1)' : 'transparent',
+                      border: 'none', cursor: 'pointer',
+                      color: isActive ? 'var(--accent-bright)' : 'var(--text-dim)',
+                      fontSize: 13, fontFamily: "'DM Sans', sans-serif",
+                      fontWeight: isActive ? 500 : 400, textAlign: 'left',
+                      transition: 'background 0.1s, color 0.1s',
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'var(--card-bg)';
+                        e.currentTarget.style.color = 'var(--text)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-dim)';
+                      }
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right actions */}

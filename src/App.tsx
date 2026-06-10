@@ -22,9 +22,19 @@ import { Register } from './pages/Register';
 import { MyArchitectures } from './pages/MyArchitectures';
 import { Settings } from './pages/Settings';
 import { Discussion } from './pages/Discussion';
+import { LearnPage } from './pages/LearnPage';
+import { LessonPage } from './pages/LessonPage';
+import { ChaosExplainPanel } from './components/ChaosExplainPanel';
+import { transformDiagram } from './components/AIGeneratorPanel';
+import { ConceptsPage } from './pages/ConceptsPage';
+import { ConceptPage } from './pages/ConceptPage';
+import { InterviewPage } from './pages/InterviewPage';
+import { InterviewSession } from './pages/InterviewSession';
+import { ArchitectureScoreCard } from './components/ArchitectureScoreCard';
 import { RequirementWizard } from './components/wizard/RequirementWizard';
 import { ValidationGate } from './components/ValidationGate';
 
+import { toPng } from 'html-to-image';
 import { diagramApi } from './api/client';
 import type { ValidationIssue } from './types';
 import { useSimulation } from './simulation/useSimulation';
@@ -97,6 +107,10 @@ function CanvasPage() {
   const [reportData,      setReportData]      = useState<SimulationReportData | null>(null);
   const [showWizard,      setShowWizard]      = useState(() => !localStorage.getItem('techsim_wizard_seen'));
   const [showGate,        setShowGate]        = useState(false);
+  const [showScore,       setShowScore]       = useState(false);
+  const [chaosExplainId,  setChaosExplainId]  = useState<string | null>(null);
+  const [scenarioGenerating, setScenarioGenerating] = useState(false);
+  const [scenarioError,      setScenarioError]      = useState<string | null>(null);
   const canvasRef = useRef<CanvasHandle | null>(null);
   const simStartRef   = useRef<number | null>(null);
   const peakRPSRef    = useRef(0);
@@ -175,15 +189,51 @@ function CanvasPage() {
     setNodeCount(nodes.length);
   }, []);
 
+  const handleExport = useCallback(() => {
+    const snap = canvasRef.current?.getSnapshot();
+    if (!snap) return;
+    const payload = {
+      version: '1.0', appVersion: 'techsim',
+      exportedAt: new Date().toISOString(),
+      title: `Diagram ${new Date().toLocaleDateString()}`,
+      nodes: snap.nodes, edges: snap.edges,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `techsim-${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleImportFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        const nodes = data.nodes ?? [];
+        const edges = data.edges ?? [];
+        canvasRef.current?.loadPreset(nodes, edges);
+      } catch {
+        alert('Invalid JSON file — could not import diagram.');
+      }
+    };
+    reader.readAsText(file);
+  }, []);
+
   const handleSave = useCallback(async () => {
     const snap = canvasRef.current?.getSnapshot();
     if (!snap) return;
 
+    const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    const thumbnailUrl = viewport
+      ? await toPng(viewport, { width: 400, height: 240, quality: 0.8 }).catch(() => undefined)
+      : undefined;
+
     if (diagramId) {
-      await diagramApi.update(diagramId, `Diagram ${new Date().toLocaleDateString()}`, snap);
+      await diagramApi.update(diagramId, `Diagram ${new Date().toLocaleDateString()}`, snap, thumbnailUrl);
       lastSavedRef.current = JSON.stringify(snap);
     } else {
-      const res = await diagramApi.save(`Diagram ${new Date().toLocaleDateString()}`, 'system_design', snap);
+      const res = await diagramApi.save(`Diagram ${new Date().toLocaleDateString()}`, 'system_design', snap, thumbnailUrl);
       if (res && res._id) {
         lastSavedRef.current = JSON.stringify(snap);
         setSearchParams({ id: res._id });
@@ -278,7 +328,39 @@ function CanvasPage() {
         ? 'partition'
         : 'crash';
     injectChaos(method, nodeId);
+    setTimeout(() => setChaosExplainId(chaosId), 3000);
   }, [injectChaos]);
+
+  const handleGenerateFromPrompt = useCallback(async (prompt: string) => {
+    setScenarioGenerating(true);
+    setScenarioError(null);
+    try {
+      const token = localStorage.getItem('techsim_token');
+      const groqKey = localStorage.getItem('groq_api_key') ?? '';
+      const geminiKey = localStorage.getItem('gemini_api_key') ?? '';
+      const res = await fetch('http://localhost:5000/api/ai/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...(groqKey ? { 'X-Groq-API-Key': groqKey } : {}),
+          ...(geminiKey ? { 'X-Gemini-API-Key': geminiKey } : {}),
+        },
+        body: JSON.stringify({ prompt, module: 'system_design' }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `Server error ${res.status}`);
+      }
+      const raw = await res.json();
+      const diagram = transformDiagram(raw);
+      canvasRef.current?.loadPreset(diagram.nodes, diagram.edges);
+    } catch (err) {
+      setScenarioError(err instanceof Error ? err.message : 'Generation failed');
+    } finally {
+      setScenarioGenerating(false);
+    }
+  }, []);
 
   const handleTrafficChange = useCallback((v: number) => {
     setTraffic(v);
@@ -298,6 +380,8 @@ function CanvasPage() {
             onTopologyChange={handleTopologyChange}
             onPresetsClick={() => setShowPresets(true)}
             onOpenWizard={() => setShowWizard(true)}
+            onExport={handleExport}
+            onImportFile={handleImportFile}
             onChaosOnNode={handleChaosOnNode}
             isSimulationRunning={isRunning}
             nodeStates={nodeStates}
@@ -323,10 +407,52 @@ function CanvasPage() {
           onTrafficChange={handleTrafficChange}
           activeNodeCount={activeNodeCount}
           totalNodeCount={Math.max(nodeCount, 1)}
+          onScoreClick={() => setShowScore(true)}
         />
       </div>
       <ValidationToastContainer toasts={toasts} onDismiss={dismissToast} />
-      {showPresets && <PresetsModal onClose={() => setShowPresets(false)} onLoad={handlePresetLoad} />}
+
+      {/* Scenario generation feedback banner */}
+      {(scenarioGenerating || scenarioError) && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 90, display: 'flex', alignItems: 'center', gap: 10,
+          background: scenarioError ? 'rgba(239,68,68,0.12)' : 'rgba(124,58,237,0.12)',
+          border: `1px solid ${scenarioError ? 'rgba(239,68,68,0.4)' : 'rgba(124,58,237,0.4)'}`,
+          borderRadius: 10, padding: '10px 16px',
+          backdropFilter: 'blur(8px)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: 12.5,
+          color: scenarioError ? '#FCA5A5' : '#C4B5FD',
+          maxWidth: 480,
+          animation: 'fadeInUp 0.2s ease',
+        }}>
+          {scenarioGenerating ? (
+            <>
+              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: 14 }}>⟳</span>
+              Generating architecture on canvas…
+            </>
+          ) : (
+            <>
+              <span>✕</span>
+              {scenarioError}
+              <button
+                onClick={() => setScenarioError(null)}
+                style={{
+                  marginLeft: 8, background: 'none', border: 'none',
+                  color: '#FCA5A5', cursor: 'pointer', fontSize: 13, padding: 0,
+                }}
+              >
+                dismiss
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {showPresets && <PresetsModal onClose={() => setShowPresets(false)} onLoad={handlePresetLoad} onGenerateFromPrompt={handleGenerateFromPrompt} />}
+      {chaosExplainId && <ChaosExplainPanel chaosId={chaosExplainId} onClose={() => setChaosExplainId(null)} />}
       {reportData && (
         <SimulationReport data={reportData} onClose={() => setReportData(null)} />
       )}
@@ -349,6 +475,13 @@ function CanvasPage() {
           edges={topology.edges}
           onProceed={proceedSimulation}
           onCancel={() => setShowGate(false)}
+        />
+      )}
+      {showScore && (
+        <ArchitectureScoreCard
+          nodes={topology.nodes}
+          edges={topology.edges}
+          onClose={() => setShowScore(false)}
         />
       )}
       <GuidedTour />
@@ -389,6 +522,32 @@ export default function App() {
           <ProtectedRoute>
             <AppShell><PlaceholderView label="Network Topology" /></AppShell>
           </ProtectedRoute>
+        } />
+        <Route path="/learn" element={
+          <ProtectedRoute>
+            <AppShell><LearnPage /></AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/learn/:trackId/:lessonId" element={
+          <ProtectedRoute><LessonPage /></ProtectedRoute>
+        } />
+        <Route path="/concepts" element={
+          <ProtectedRoute>
+            <AppShell><ConceptsPage /></AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/concepts/:id" element={
+          <ProtectedRoute>
+            <AppShell><ConceptPage /></AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/interview" element={
+          <ProtectedRoute>
+            <AppShell><InterviewPage /></AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/interview/:id" element={
+          <ProtectedRoute><InterviewSession /></ProtectedRoute>
         } />
         <Route path="/my-architectures" element={
           <ProtectedRoute>

@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { componentKnowledge, type ComponentInfo } from '../data/componentKnowledge';
 import { COMPONENT_REFERENCES, GENERAL_REFERENCES, type Reference, type RefType } from '../data/references';
+import { getKnowledgeCard } from '../data/content/index';
 
-type Tab = 'overview' | 'when' | 'tradeoffs' | 'mistakes' | 'estimations' | 'references';
+type Tab = 'overview' | 'when' | 'realworld' | 'metrics' | 'mistakes' | 'interview' | 'references';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview',    label: 'Overview'    },
-  { id: 'when',        label: 'When to Use' },
-  { id: 'tradeoffs',   label: 'Trade-offs'  },
-  { id: 'mistakes',    label: 'Mistakes'    },
-  { id: 'estimations', label: 'Capacity'    },
-  { id: 'references',  label: '📚 Learn'    },
+  { id: 'overview',   label: 'Overview'    },
+  { id: 'when',       label: 'When to Use' },
+  { id: 'realworld',  label: 'Real World'  },
+  { id: 'metrics',    label: 'Metrics'     },
+  { id: 'mistakes',   label: 'Mistakes'    },
+  { id: 'interview',  label: '🎯 Interview' },
+  { id: 'references', label: '📚 Learn'    },
 ];
 
 interface KnowledgePanelProps {
@@ -22,6 +24,7 @@ interface KnowledgePanelProps {
 export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelProps) {
   const [tab, setTab] = useState<Tab>('overview');
   const info = componentKnowledge[nodeTypeId];
+  const card = getKnowledgeCard(nodeTypeId);
 
   return (
     <>
@@ -135,15 +138,19 @@ export function KnowledgePanel({ nodeTypeId, label, onClose }: KnowledgePanelPro
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 20px' }}>
           {tab === 'references' ? (
             <ReferencesTab nodeTypeId={nodeTypeId} />
-          ) : !info ? (
+          ) : tab === 'realworld' ? (
+            <RealWorldTab card={card} info={info} />
+          ) : tab === 'metrics' ? (
+            <MetricsTab card={card} info={info} />
+          ) : tab === 'interview' ? (
+            <InterviewTab card={card} />
+          ) : !info && !card ? (
             <NoKnowledge label={label} nodeTypeId={nodeTypeId} />
           ) : (
             <>
-              {tab === 'overview'    && <OverviewTab info={info} />}
-              {tab === 'when'        && <WhenTab info={info} />}
-              {tab === 'tradeoffs'   && <TradeoffsTab info={info} />}
-              {tab === 'mistakes'    && <MistakesTab info={info} />}
-              {tab === 'estimations' && <EstimationsTab info={info} />}
+              {tab === 'overview' && <OverviewTab info={info} card={card} />}
+              {tab === 'when'     && <WhenTab info={info} card={card} />}
+              {tab === 'mistakes' && <MistakesTab info={info} card={card} />}
             </>
           )}
         </div>
@@ -194,96 +201,66 @@ function BulletList({ items, color = '#A78BFA' }: { items: string[]; color?: str
 
 // ── Tab content components ────────────────────────────────────────────────────
 
-function OverviewTab({ info }: { info: ComponentInfo }) {
+import type { KnowledgeCard } from '../data/content/index';
+
+type TabProps = { info: ComponentInfo | undefined; card: KnowledgeCard | undefined };
+
+function OverviewTab({ info, card }: TabProps) {
+  const whatItDoes = card?.whatItDoes ?? info?.whatItDoes;
+  const tagline    = card?.tagline;
+
   return (
     <div>
+      {tagline && (
+        <p style={{ margin: '0 0 14px', fontSize: 13, color: '#7C3AED', fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.5 }}>
+          {tagline}
+        </p>
+      )}
       <SectionHeading>What it does</SectionHeading>
-      <Prose>{info.whatItDoes}</Prose>
+      {whatItDoes && <Prose>{whatItDoes}</Prose>}
 
-      {info.algorithms && info.algorithms.length > 0 && (
+      {info?.algorithms && info.algorithms.length > 0 && (
         <>
           <SectionHeading>Key algorithms & strategies</SectionHeading>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {info.algorithms.map((alg, i) => (
-              <div
-                key={i}
-                style={{
-                  background: 'rgba(124,58,237,0.06)',
-                  border: '1px solid rgba(124,58,237,0.15)',
-                  borderRadius: 8,
-                  padding: '9px 12px',
-                }}
-              >
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#C4B5FD', marginBottom: 3 }}>
-                  {alg.name}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
-                  {alg.desc}
-                </div>
+              <div key={i} style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 8, padding: '9px 12px' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#C4B5FD', marginBottom: 3 }}>{alg.name}</div>
+                <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>{alg.desc}</div>
               </div>
             ))}
           </div>
         </>
       )}
-
-      <SectionHeading>Real-world examples</SectionHeading>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {info.realWorldExamples.map((ex, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex', gap: 8, alignItems: 'flex-start',
-              background: 'rgba(6,182,212,0.05)',
-              border: '1px solid rgba(6,182,212,0.12)',
-              borderRadius: 7,
-              padding: '7px 10px',
-            }}
-          >
-            <span style={{ color: '#06B6D4', flexShrink: 0, fontSize: 11, marginTop: 2 }}>▸</span>
-            <span style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.5 }}>{ex}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
 
-function WhenTab({ info }: { info: ComponentInfo }) {
+function WhenTab({ info, card }: TabProps) {
+  const whenToUse    = card?.whenToUse    ?? info?.whenToUse    ?? [];
+  const whenNotToUse = card?.whenNotToUse ?? [];
   return (
     <div>
       <SectionHeading>When to use</SectionHeading>
-      <BulletList items={info.whenToUse} color='#34D399' />
+      <BulletList items={whenToUse} color='#34D399' />
+      {whenNotToUse.length > 0 && (
+        <>
+          <SectionHeading>When NOT to use / trade-offs</SectionHeading>
+          <BulletList items={whenNotToUse} color='#F97316' />
+        </>
+      )}
     </div>
   );
 }
 
-function TradeoffsTab({ info }: { info: ComponentInfo }) {
-  return (
-    <div>
-      <SectionHeading>Pros</SectionHeading>
-      <BulletList items={info.tradeoffs.pros} color='#22C55E' />
-      <SectionHeading>Cons</SectionHeading>
-      <BulletList items={info.tradeoffs.cons} color='#EF4444' />
-    </div>
-  );
-}
-
-function MistakesTab({ info }: { info: ComponentInfo }) {
+function MistakesTab({ info, card }: TabProps) {
+  const mistakes = card?.commonMistakes ?? info?.commonMistakes ?? [];
   return (
     <div>
       <SectionHeading>Common mistakes to avoid</SectionHeading>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {info.commonMistakes.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex', gap: 10, alignItems: 'flex-start',
-              background: 'rgba(239,68,68,0.05)',
-              border: '1px solid rgba(239,68,68,0.15)',
-              borderRadius: 8,
-              padding: '9px 12px',
-            }}
-          >
+        {mistakes.map((m, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, padding: '9px 12px' }}>
             <span style={{ color: '#EF4444', flexShrink: 0, fontSize: 14, lineHeight: 1.4 }}>⚠</span>
             <span style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.55 }}>{m}</span>
           </div>
@@ -293,56 +270,91 @@ function MistakesTab({ info }: { info: ComponentInfo }) {
   );
 }
 
-function EstimationsTab({ info }: { info: ComponentInfo }) {
-  const rows = [
-    { label: 'Throughput', value: info.estimations.throughput, color: '#06B6D4' },
-    { label: 'Latency',    value: info.estimations.latency,    color: '#A78BFA' },
-    { label: 'Cost',       value: info.estimations.cost,       color: '#34D399' },
-  ];
+function RealWorldTab({ card, info }: TabProps) {
+  if (card?.realWorldUsage?.length) {
+    return (
+      <div>
+        <SectionHeading>Real-world usage</SectionHeading>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {card.realWorldUsage.map((r, i) => (
+            <div key={i} style={{ background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.15)', borderRadius: 9, padding: '11px 14px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#06B6D4', marginBottom: 4, fontFamily: "'IBM Plex Mono', monospace" }}>{r.company}</div>
+              <div style={{ fontSize: 13, color: '#94A3B8', lineHeight: 1.55 }}>{r.useCase}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // Fallback to legacy realWorldExamples
+  const examples = info?.realWorldExamples ?? [];
+  return (
+    <div>
+      <SectionHeading>Real-world examples</SectionHeading>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {examples.map((ex, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(6,182,212,0.05)', border: '1px solid rgba(6,182,212,0.12)', borderRadius: 7, padding: '7px 10px' }}>
+            <span style={{ color: '#06B6D4', flexShrink: 0, fontSize: 11, marginTop: 2 }}>▸</span>
+            <span style={{ fontSize: 12.5, color: '#94A3B8', lineHeight: 1.5 }}>{ex}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricsTab({ card, info }: TabProps) {
+  const km = card?.keyMetrics;
+  const rows = km
+    ? [
+        { label: 'Throughput', value: km.throughput,   color: '#06B6D4' },
+        { label: 'Latency',    value: km.latency,      color: '#A78BFA' },
+        { label: 'Cost',       value: km.typicalCost,  color: '#34D399' },
+      ]
+    : info
+    ? [
+        { label: 'Throughput', value: info.estimations.throughput, color: '#06B6D4' },
+        { label: 'Latency',    value: info.estimations.latency,    color: '#A78BFA' },
+        { label: 'Cost',       value: info.estimations.cost,       color: '#34D399' },
+      ]
+    : [];
 
   return (
     <div>
       <SectionHeading>Capacity & cost estimations</SectionHeading>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map(row => (
-          <div
-            key={row.label}
-            style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 8,
-              padding: '11px 14px',
-            }}
-          >
-            <div style={{
-              fontSize: 10,
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontWeight: 700,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: row.color,
-              marginBottom: 5,
-            }}>
-              {row.label}
-            </div>
-            <div style={{ fontSize: 13, color: '#CBD5E1', lineHeight: 1.5 }}>
-              {row.value}
-            </div>
+          <div key={row.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '11px 14px' }}>
+            <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: row.color, marginBottom: 5 }}>{row.label}</div>
+            <div style={{ fontSize: 13, color: '#CBD5E1', lineHeight: 1.5 }}>{row.value}</div>
           </div>
         ))}
       </div>
-      <div style={{
-        marginTop: 20,
-        padding: '10px 14px',
-        background: 'rgba(124,58,237,0.06)',
-        border: '1px solid rgba(124,58,237,0.15)',
-        borderRadius: 8,
-        fontSize: 11.5,
-        color: '#64748B',
-        fontFamily: "'IBM Plex Mono', monospace",
-        lineHeight: 1.5,
-      }}>
+      <div style={{ marginTop: 20, padding: '10px 14px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 8, fontSize: 11.5, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.5 }}>
         Numbers are rough estimates. Always benchmark in your specific environment and workload.
+      </div>
+    </div>
+  );
+}
+
+function InterviewTab({ card }: { card: KnowledgeCard | undefined }) {
+  if (!card?.interviewTips) {
+    return (
+      <div style={{ textAlign: 'center' as const, paddingTop: 48 }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🎯</div>
+        <div style={{ fontSize: 13, color: '#64748B', fontFamily: "'IBM Plex Mono', monospace" }}>
+          Interview tips available once content is loaded.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <SectionHeading>Interview talking points</SectionHeading>
+      <div style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 10, padding: '14px 16px' }}>
+        <div style={{ fontSize: 13.5, color: '#94A3B8', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
+          {card.interviewTips}
+        </div>
       </div>
     </div>
   );

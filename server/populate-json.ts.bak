@@ -1,0 +1,112 @@
+import fs from 'fs';
+import path from 'path';
+import { componentKnowledge } from '../src/data/componentKnowledge';
+import { CHALLENGES } from '../src/data/challenges';
+import { CHAOS_SCENARIOS } from '../src/data/chaos';
+import { NODE_TEMPLATES } from '../src/data/nodes';
+
+const CONTENT_DIR = path.join(__dirname, '../src/data/content');
+
+function populate() {
+  // 1. Knowledge Cards
+  const components = Object.entries(componentKnowledge).map(([id, info]) => {
+    // Find category from NODE_TEMPLATES
+    const template = NODE_TEMPLATES.find(t => t.id === id);
+    const category = template ? template.category : 'network';
+
+    // Parse realWorldExamples into { company, useCase }
+    const realWorldUsage = info.realWorldExamples.map(example => {
+      let company = 'Various';
+      let useCase = example;
+      if (example.includes(' uses ')) {
+        const parts = example.split(' uses ');
+        company = parts[0];
+        useCase = 'Uses ' + parts[1];
+      } else if (example.includes(' acts as ')) {
+        const parts = example.split(' acts as ');
+        company = parts[0];
+        useCase = 'Acts as ' + parts[1];
+      } else if (example.includes(' monitors ')) {
+        const parts = example.split(' monitors ');
+        company = parts[0];
+        useCase = 'Monitors ' + parts[1];
+      }
+      return { company, useCase };
+    });
+
+    // Interview Tips
+    const interviewTips = info.algorithms && info.algorithms.length > 0
+      ? `Key Algorithms/Patterns:\n` + info.algorithms.map(a => `- ${a.name}: ${a.desc}`).join('\n')
+      : 'Focus on understanding tradeoffs between scalability, consistency, and latency.';
+
+    return {
+      componentId: id,
+      name: info.name,
+      category,
+      tagline: info.oneLiner,
+      whatItDoes: info.whatItDoes,
+      whenToUse: info.whenToUse,
+      whenNotToUse: info.tradeoffs.cons,
+      realWorldUsage,
+      keyMetrics: {
+        throughput: info.estimations.throughput,
+        latency: info.estimations.latency,
+        cost: info.estimations.cost
+      },
+      commonMistakes: info.commonMistakes,
+      interviewTips
+    };
+  });
+
+  fs.writeFileSync(
+    path.join(CONTENT_DIR, 'knowledgeCards.json'),
+    JSON.stringify({ components }, null, 2)
+  );
+  console.log(`Populated ${components.length} knowledge cards to JSON`);
+
+  // 2. Preset Scenarios
+  const scenarios = CHALLENGES.map(c => {
+    return {
+      id: c.id,
+      title: c.title,
+      commonInterviewQuestion: c.description,
+      difficulty: c.difficulty,
+      domain: c.tags[0] || 'system_design',
+      learningObjectives: c.functionalReqs,
+      components: c.tags,
+      scale: c.scale,
+      functionalReqs: c.functionalReqs,
+      nonFunctionalReqs: c.nonFunctionalReqs,
+      hints: c.hints,
+      followUpQuestions: c.followUpQuestions,
+      tags: c.tags
+    };
+  });
+
+  fs.writeFileSync(
+    path.join(CONTENT_DIR, 'presetScenarios.json'),
+    JSON.stringify({ scenarios }, null, 2)
+  );
+  console.log(`Populated ${scenarios.length} preset scenarios to JSON`);
+
+  // 3. Chaos Scenarios
+  const chaosScenarios = CHAOS_SCENARIOS.map(s => {
+    return {
+      id: s.id,
+      label: s.label,
+      whatHappens: [s.description],
+      userImpact: s.description,
+      cascadeEffects: ['Increased system latency', 'Potential cascading dependency pressure'],
+      recoverySteps: ['Check metrics and logs', 'Gracefully restart target component', 'Verify replication and failover'],
+      interviewAngle: `How does your design mitigate ${s.label.toLowerCase()}? Discuss circuit breakers, redundancy, and fallback behavior.`
+    };
+  });
+
+  fs.writeFileSync(
+    path.join(CONTENT_DIR, 'chaosScenarios.json'),
+    JSON.stringify({ scenarios: chaosScenarios }, null, 2)
+  );
+  console.log(`Populated ${chaosScenarios.length} chaos scenarios to JSON`);
+}
+
+populate();

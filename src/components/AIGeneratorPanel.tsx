@@ -31,7 +31,7 @@ const EDGE_COLORS: Record<string, string> = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformDiagram(raw: any) {
+export function transformDiagram(raw: any) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nodes = raw.nodes.map((n: any) => {
     const mapping = NODE_TYPE_MAP[n.data?.nodeType] ?? { nodeTypeId: 'docker', icon: 'box' };

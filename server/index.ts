@@ -14,6 +14,7 @@ import scenarioRoutes from './routes/scenarios';
 import progressRoutes from './routes/progress';
 import aiRoutes from './routes/ai';
 import feedbackRoutes from './routes/feedback';
+import knowledgeRoutes from './routes/knowledge';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,7 +24,7 @@ app.options(/(.*)/, cors());
 app.use(cors({
   origin: 'http://localhost:5173',
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Groq-API-Key', 'X-Gemini-API-Key'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
@@ -37,6 +38,7 @@ app.use('/api/scenarios', scenarioRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/knowledge', knowledgeRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

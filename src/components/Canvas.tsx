@@ -138,6 +138,8 @@ interface CanvasProps {
   onChaosOnNode?: (chaosId: string, nodeId: string) => void;
   onPresetsClick?: () => void;
   onOpenWizard?: () => void;
+  onExport?: () => void;
+  onImportFile?: (file: File) => void;
   isSimulationRunning?: boolean;
   nodeStates?: Map<string, NodeState>;
   edgeStates?: Map<string, EdgeState>;
@@ -154,6 +156,8 @@ export function Canvas({
   onChaosOnNode,
   onPresetsClick,
   onOpenWizard,
+  onExport,
+  onImportFile,
   isSimulationRunning = false,
   nodeStates = new Map(),
   edgeStates = new Map(),
@@ -195,18 +199,10 @@ export function Canvas({
     return () => window.removeEventListener('node-knowledge-open', handler);
   }, []);
 
-  // Default routing type for newly drawn edges
-  const [defaultEdgeType, setDefaultEdgeType] = useState<EdgeRoutingType>(
-    () => (localStorage.getItem('edge_routing') as EdgeRoutingType) ?? 'bezier'
-  );
+  // Default routing type for newly drawn edges (persisted, changed per-edge via EdgeLabelRenderer)
   const defaultEdgeTypeRef = useRef<EdgeRoutingType>(
     (localStorage.getItem('edge_routing') as EdgeRoutingType) ?? 'bezier'
   );
-  const updateDefaultEdgeType = (t: EdgeRoutingType) => {
-    defaultEdgeTypeRef.current = t;
-    setDefaultEdgeType(t);
-    localStorage.setItem('edge_routing', t);
-  };
 
   const [showGrid] = useState(() => localStorage.getItem('show_grid') !== 'false');
   const [minimap]  = useState(() => localStorage.getItem('show_minimap') !== 'false');
@@ -479,7 +475,6 @@ export function Canvas({
           pointerEvents: 'auto',
         }}
       >
-        <EdgeStylePicker value={defaultEdgeType} onChange={updateDefaultEdgeType} />
         {onPresetsClick && (
           <button
             onClick={onPresetsClick}
@@ -510,6 +505,48 @@ export function Canvas({
             <span style={{ fontSize: 13 }}>⊞</span>
             Presets
           </button>
+        )}
+        {onExport && (
+          <button
+            onClick={onExport}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 11px',
+              background: 'rgba(6,182,212,0.12)',
+              border: '1px solid rgba(6,182,212,0.35)',
+              borderRadius: 8, color: '#67E8F9',
+              fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+              cursor: 'pointer', backdropFilter: 'blur(8px)',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.4)', transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.22)'; e.currentTarget.style.borderColor = 'rgba(6,182,212,0.6)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.12)'; e.currentTarget.style.borderColor = 'rgba(6,182,212,0.35)'; }}
+            title="Export diagram as JSON"
+          >
+            ⬇ Export
+          </button>
+        )}
+        {onImportFile && (
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 11px',
+              background: 'rgba(6,182,212,0.08)',
+              border: '1px solid rgba(6,182,212,0.3)',
+              borderRadius: 8, color: '#67E8F9',
+              fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+              cursor: 'pointer', backdropFilter: 'blur(8px)',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.4)', transition: 'all 0.15s',
+            }}
+            title="Import diagram from JSON"
+          >
+            ⬆ Import
+            <input
+              type="file" accept=".json,application/json"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ''; }}
+            />
+          </label>
         )}
         <button
           onClick={() => setShowAIPanel(true)}
@@ -814,115 +851,6 @@ function PacketOverlay({
   );
 }
 
-// ── Edge style default picker overlay ─────────────────────────────────────
-const EDGE_STYLE_OPTIONS: { type: EdgeRoutingType; icon: string; label: string }[] = [
-  { type: 'smoothstep', icon: '⌒', label: 'Smooth' },
-  { type: 'straight',   icon: '—', label: 'Straight' },
-  { type: 'bezier',     icon: '∿', label: 'Bezier' },
-];
-
-function EdgeStylePicker({
-  value,
-  onChange,
-}: {
-  value: EdgeRoutingType;
-  onChange: (t: EdgeRoutingType) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = EDGE_STYLE_OPTIONS.find(o => o.type === value)!;
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <button
-          onClick={() => setOpen(v => !v)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '5px 12px 5px 10px',
-            background: 'rgba(10,10,15,0.9)',
-            border: '1px solid rgba(124,58,237,0.35)',
-            borderRadius: 8,
-            color: '#94A3B8',
-            fontSize: 11.5,
-            fontFamily: "'IBM Plex Mono', monospace",
-            cursor: 'pointer',
-            backdropFilter: 'blur(8px)',
-            boxShadow: '0 2px 16px rgba(0,0,0,0.5)',
-            transition: 'border-color 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)')}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(124,58,237,0.35)')}
-        >
-          <span style={{ fontSize: 13, color: '#A78BFA' }}>{current.icon}</span>
-          <span style={{ color: '#CBD5E1' }}>Edge Style:</span>
-          <span style={{ color: '#A78BFA', fontWeight: 600 }}>{current.label}</span>
-          <span style={{ color: '#64748B', fontSize: 9, marginLeft: 2 }}>▾</span>
-        </button>
-
-        {open && (
-          <>
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 0 }}
-              onClick={() => setOpen(false)}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 6px)',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1,
-                background: 'rgba(10,10,15,0.97)',
-                border: '1px solid rgba(124,58,237,0.4)',
-                borderRadius: 8,
-                padding: '4px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-                minWidth: 140,
-              }}
-            >
-              {EDGE_STYLE_OPTIONS.map(({ type, icon, label }) => {
-                const isActive = value === type;
-                return (
-                  <button
-                    key={type}
-                    onClick={() => { onChange(type); setOpen(false); }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: 5,
-                      border: 'none',
-                      background: isActive ? 'rgba(124,58,237,0.2)' : 'transparent',
-                      color: isActive ? '#A78BFA' : '#94A3B8',
-                      fontSize: 12,
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      fontWeight: isActive ? 600 : 400,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) e.currentTarget.style.background = 'rgba(124,58,237,0.1)';
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    <span style={{ fontSize: 14, width: 16, textAlign: 'center' }}>{icon}</span>
-                    {label}
-                    {isActive && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#7C3AED' }}>✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-    </div>
-  );
-}
 
 function EmptyState() {
   return (

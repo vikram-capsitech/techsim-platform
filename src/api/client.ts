@@ -74,19 +74,19 @@ export type DiagramSummary = {
 };
 
 export const diagramApi = {
-  save: (title: string, module: string, canvasJson: any) =>
+  save: (title: string, module: string, canvasJson: any, thumbnailUrl?: string) =>
     request<any>('/api/diagrams', {
       method: 'POST',
-      body: JSON.stringify({ title, module, canvasJson }),
+      body: JSON.stringify({ title, module, canvasJson, ...(thumbnailUrl ? { thumbnailUrl } : {}) }),
     }),
 
   get: (id: string) =>
     request<any>(`/api/diagrams/${id}`),
 
-  update: (id: string, title: string, canvasJson: any) =>
+  update: (id: string, title: string, canvasJson: any, thumbnailUrl?: string) =>
     request<any>(`/api/diagrams/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ title, canvasJson }),
+      body: JSON.stringify({ title, canvasJson, ...(thumbnailUrl ? { thumbnailUrl } : {}) }),
     }),
 
   autosave: (id: string, canvasJson: any) =>
@@ -106,4 +106,16 @@ export const diagramApi = {
 
   fork: (id: string) =>
     request<DiagramSummary>(`/api/diagrams/${id}/fork`, { method: 'POST' }),
+
+  versions: (id: string) =>
+    request<DiagramVersion[]>(`/api/diagrams/${id}/versions`),
+
+  restore: (id: string, idx: number) =>
+    request<any>(`/api/diagrams/${id}/restore/${idx}`, { method: 'POST' }),
+};
+
+export type DiagramVersion = {
+  canvasJson: { nodes: any[]; edges: any[] };
+  savedAt: string;
+  label: string;
 };

@@ -17,6 +17,7 @@ const scenarios_1 = __importDefault(require("./routes/scenarios"));
 const progress_1 = __importDefault(require("./routes/progress"));
 const ai_1 = __importDefault(require("./routes/ai"));
 const feedback_1 = __importDefault(require("./routes/feedback"));
+const knowledge_1 = __importDefault(require("./routes/knowledge"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 // Enable CORS options preflight for all routes and apply CORS settings
@@ -24,7 +25,7 @@ app.options(/(.*)/, (0, cors_1.default)());
 app.use((0, cors_1.default)({
     origin: 'http://localhost:5173',
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Groq-API-Key', 'X-Gemini-API-Key'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 // Body parser
@@ -36,6 +37,7 @@ app.use('/api/scenarios', scenarios_1.default);
 app.use('/api/progress', progress_1.default);
 app.use('/api/ai', ai_1.default);
 app.use('/api/feedback', feedback_1.default);
+app.use('/api/knowledge', knowledge_1.default);
 // Health check endpoint
 app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'OK', message: 'TechSim API is healthy' });

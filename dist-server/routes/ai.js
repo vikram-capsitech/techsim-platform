@@ -1,8 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const ai_1 = require("../lib/ai");
+const Scenario_1 = __importDefault(require("../models/Scenario"));
 const router = (0, express_1.Router)();
 function extractJSON(text) {
     const firstBrace = text.indexOf('{');
@@ -378,7 +382,9 @@ router.post('/chat', auth_1.authMiddleware, async (req, res, next) => {
         res.json({ response });
     }
     catch (err) {
-        next(err);
+        console.error('[/api/ai/chat] error:', err);
+        const detail = err instanceof Error ? err.message : String(err);
+        res.status(500).json({ error: 'AI service unavailable', detail });
     }
 });
 // ── Recommend: suggest best-fit tools/technologies ────────────────────────────
@@ -407,6 +413,85 @@ router.post('/recommend', auth_1.authMiddleware, async (req, res, next) => {
         }
         else {
             next(err);
+        }
+    }
+});
+// POST /api/ai/interview-feedback — score system design interview solution
+router.post('/interview-feedback', auth_1.authMiddleware, async (req, res, next) => {
+    try {
+        const { challengeId, nodes, edges, timeUsed, hintsUsed } = req.body;
+        if (!challengeId || !nodes || !edges) {
+            return res.status(400).json({ error: 'challengeId, nodes, and edges are required' });
+        }
+        let scenarioContext = '';
+        try {
+            const scenario = await Scenario_1.default.findById(challengeId);
+            if (scenario) {
+                scenarioContext = `
+Challenge Title: ${scenario.title}
+Challenge Target Description: ${scenario.description}
+Difficulty: ${scenario.difficulty}
+`;
+            }
+        }
+        catch (err) {
+            // Ignore invalid ObjectId or not found
+        }
+        const architectureDesc = nodes.map((n) => `- ${n.data?.label || 'unnamed'} (${n.data?.nodeType || n.data?.nodeTypeId || 'unknown'}, replicas: ${n.data?.replicas || 1}, capacity: ${n.data?.capacity || 1000} RPS)`).join('\n');
+        const connectionDesc = edges.map((e) => {
+            const src = nodes.find((n) => n.id === e.source)?.data?.label || 'unknown';
+            const tgt = nodes.find((n) => n.id === e.target)?.data?.label || 'unknown';
+            return `- ${src} → ${tgt} (${e.data?.protocol || 'HTTP'})`;
+        }).join('\n');
+        const prompt = `
+    Grade the candidate's whiteboard architecture simulation:
+    ${scenarioContext || `Challenge ID: ${challengeId}`}
+
+    Candidate's stats:
+    Time Used: ${timeUsed !== undefined ? timeUsed + ' seconds' : 'Not specified'}
+    Hints Used: ${hintsUsed !== undefined ? hintsUsed : 0}
+
+    Proposed Architecture Details:
+    Components (Nodes):
+    ${architectureDesc || 'None'}
+
+    Connections (Edges):
+    ${connectionDesc || 'None'}
+
+    Evaluate the architecture against the following rubric (score out of 100 for each):
+    1. Functional Requirements: Did they build the right flow/structure for the target scenario?
+    2. Non-Functional Requirements: Are throughput, latency, reliability, and security handled correctly?
+    3. Component Selection: Did they select appropriate technologies (databases, messaging, caching, gateway, etc.)?
+    4. Connection Patterns: Are connection directions, protocols, and layers logically valid?
+    5. Scalability: Did they handle scaling mechanisms, failover, redundancy, and capacity correctly?
+
+    Return ONLY valid raw JSON with this exact structure (no backticks, no code blocks, no other text):
+    {
+      "rubricScores": {
+        "functionalRequirements": number,
+        "nonFunctionalRequirements": number,
+        "componentSelection": number,
+        "connectionPatterns": number,
+        "scalability": number
+      },
+      "verdict": "Pass" | "Conditional Pass" | "Fail",
+      "strengths": ["string"],
+      "improvements": ["string"]
+    }
+    `;
+        const systemPrompt = 'You are a principal systems architect grading whiteboard interviews. Be critical, specific, and detailed. Return only the JSON object.';
+        const customGroqKey = req.headers['x-groq-api-key'];
+        const customGeminiKey = req.headers['x-gemini-api-key'];
+        const response = await (0, ai_1.callAI)(prompt, systemPrompt, 2000, customGroqKey, customGeminiKey);
+        const cleaned = extractJSON(response);
+        res.json(JSON.parse(cleaned));
+    }
+    catch (error) {
+        if (error instanceof SyntaxError) {
+            res.status(500).json({ error: 'Failed to parse interview feedback from AI response' });
+        }
+        else {
+            next(error);
         }
     }
 });

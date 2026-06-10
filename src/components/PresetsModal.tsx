@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import type { TechNodeData } from './TechNode';
 import type { Category } from '../data/nodes';
+import { getAllScenarios, type PresetScenario } from '../data/content/index';
 
 // ── Preset definition ────────────────────────────────────────────────────────
 export interface Preset {
@@ -263,12 +265,41 @@ export const PRESETS: Preset[] = [
 ];
 
 // ── Modal component ───────────────────────────────────────────────────────────
+
+const DIFFICULTY_COLOR: Record<string, string> = {
+  Starter:      '#22C55E',
+  Intermediate: '#F59E0B',
+  Advanced:     '#EF4444',
+  Expert:       '#A855F7',
+  Easy:         '#22C55E',
+  Medium:       '#F59E0B',
+  Hard:         '#EF4444',
+};
+
 interface PresetsModalProps {
   onClose: () => void;
   onLoad: (preset: Preset) => void;
+  onGenerateFromPrompt?: (prompt: string) => void;
 }
 
-export function PresetsModal({ onClose, onLoad }: PresetsModalProps) {
+export function PresetsModal({ onClose, onLoad, onGenerateFromPrompt }: PresetsModalProps) {
+  const [activeTab, setActiveTab] = useState<'templates' | 'scenarios'>('templates');
+  const scenarios = getAllScenarios();
+
+  // Group scenarios by difficulty
+  const groups: Record<string, PresetScenario[]> = {};
+  scenarios.forEach(s => {
+    if (!groups[s.difficulty]) groups[s.difficulty] = [];
+    groups[s.difficulty].push(s);
+  });
+  const difficultyOrder = ['Easy', 'Starter', 'Medium', 'Intermediate', 'Hard', 'Advanced', 'Expert'];
+  const sortedGroups = difficultyOrder.filter(d => groups[d]);
+
+  const tabs = [
+    { id: 'templates' as const, label: 'Canvas Templates', count: PRESETS.length },
+    { id: 'scenarios' as const, label: 'Interview Scenarios', count: scenarios.length },
+  ];
+
   return (
     <div
       style={{
@@ -280,7 +311,7 @@ export function PresetsModal({ onClose, onLoad }: PresetsModalProps) {
     >
       <div
         style={{
-          width: 720, maxHeight: '80vh',
+          width: 780, maxHeight: '82vh',
           background: 'var(--panel-bg)',
           border: '1px solid var(--border)',
           borderRadius: 14,
@@ -292,115 +323,231 @@ export function PresetsModal({ onClose, onLoad }: PresetsModalProps) {
       >
         {/* Header */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 20px',
+          padding: '16px 20px 0',
           borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}>
-          <div>
-            <div style={{
-              fontSize: 15, fontWeight: 700, color: 'var(--text)',
-              fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em',
-            }}>
-              Architecture Presets
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+                Architecture Presets
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>
+                {activeTab === 'templates' ? 'Load a pre-built canvas template' : 'Study real-world system designs — AI generates the canvas'}
+              </div>
             </div>
-            <div style={{
-              fontSize: 11, color: 'var(--text-muted)',
-              fontFamily: "'IBM Plex Mono', monospace", marginTop: 3,
-            }}>
-              Select a template to load onto the canvas
-            </div>
+            <button
+              onClick={onClose}
+              style={{
+                width: 28, height: 28, borderRadius: 7,
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                color: 'var(--text-muted)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, fontWeight: 700,
+              }}
+            >✕</button>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 28, height: 28, borderRadius: 7,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'var(--text-muted)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 700,
-            }}
-          >
-            ✕
-          </button>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                style={{
+                  padding: '7px 14px', borderRadius: '7px 7px 0 0',
+                  border: 'none', cursor: 'pointer', transition: 'all 0.12s',
+                  background: activeTab === t.id ? 'var(--bg)' : 'transparent',
+                  borderBottom: activeTab === t.id ? '2px solid #7C3AED' : '2px solid transparent',
+                  color: activeTab === t.id ? 'var(--accent-bright)' : 'var(--text-muted)',
+                  fontSize: 12.5, fontWeight: activeTab === t.id ? 600 : 400,
+                  fontFamily: "'DM Sans', sans-serif",
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                {t.label}
+                <span style={{
+                  fontSize: 10, fontFamily: "'IBM Plex Mono', monospace",
+                  background: activeTab === t.id ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.06)',
+                  color: activeTab === t.id ? '#A78BFA' : 'var(--text-muted)',
+                  borderRadius: 4, padding: '1px 6px',
+                }}>
+                  {t.count}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Grid */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 12, padding: 16, overflowY: 'auto',
-        }}>
-          {PRESETS.map(preset => (
-            <PresetCard key={preset.id} preset={preset} onLoad={onLoad} />
-          ))}
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+          {activeTab === 'templates' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              {PRESETS.map(preset => (
+                <CanvasPresetCard key={preset.id} preset={preset} onLoad={p => { onLoad(p); onClose(); }} />
+              ))}
+            </div>
+          ) : (
+            <div>
+              {sortedGroups.map(difficulty => (
+                <div key={difficulty} style={{ marginBottom: 28 }}>
+                  {/* Group heading */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+                  }}>
+                    <span style={{
+                      fontSize: 10.5, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700,
+                      letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+                      color: DIFFICULTY_COLOR[difficulty] ?? '#64748B',
+                      background: (DIFFICULTY_COLOR[difficulty] ?? '#64748B') + '18',
+                      border: `1px solid ${(DIFFICULTY_COLOR[difficulty] ?? '#64748B')}35`,
+                      borderRadius: 5, padding: '3px 10px',
+                    }}>
+                      {difficulty}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {groups[difficulty].length} scenarios
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                    {groups[difficulty].map(scenario => (
+                      <ScenarioCard
+                        key={scenario.id}
+                        scenario={scenario}
+                        onGenerate={prompt => {
+                          onGenerateFromPrompt?.(prompt);
+                          onClose();
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function PresetCard({ preset, onLoad }: { preset: Preset; onLoad: (p: Preset) => void }) {
-  const nodeCount = preset.nodes.length;
-  const edgeCount = preset.edges.length;
-
+// ── Canvas template card (existing behavior) ──────────────────────────────────
+function CanvasPresetCard({ preset, onLoad }: { preset: Preset; onLoad: (p: Preset) => void }) {
   return (
     <button
       onClick={() => onLoad(preset)}
       style={{
-        textAlign: 'left', background: 'var(--card-bg)',
-        border: '1px solid var(--border)',
-        borderRadius: 10, padding: '14px 16px',
-        cursor: 'pointer', transition: 'all 0.15s',
+        textAlign: 'left', background: 'var(--card-bg)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s',
         display: 'flex', flexDirection: 'column', gap: 8,
       }}
-      onMouseEnter={e => {
-        e.currentTarget.style.background = 'var(--card-hover)';
-        e.currentTarget.style.borderColor = 'var(--border-bright)';
-        e.currentTarget.style.transform = 'translateY(-1px)';
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.background = 'var(--card-bg)';
-        e.currentTarget.style.borderColor = 'var(--border)';
-        e.currentTarget.style.transform = 'none';
-      }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-hover)'; e.currentTarget.style.borderColor = 'var(--border-bright)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'var(--card-bg)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; }}
     >
-      {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{
-          fontSize: 13.5, fontWeight: 700, color: 'var(--text)',
-          fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em',
-          lineHeight: 1.2,
-        }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em', lineHeight: 1.2 }}>
           {preset.name}
         </div>
         <span style={{
-          flexShrink: 0, fontSize: 9.5, fontWeight: 700,
-          fontFamily: "'IBM Plex Mono', monospace",
-          background: `${preset.tagColor}18`,
-          border: `1px solid ${preset.tagColor}40`,
-          color: preset.tagColor,
-          borderRadius: 5, padding: '2px 7px',
-          letterSpacing: '0.06em',
+          flexShrink: 0, fontSize: 9.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
+          background: `${preset.tagColor}18`, border: `1px solid ${preset.tagColor}40`, color: preset.tagColor,
+          borderRadius: 5, padding: '2px 7px', letterSpacing: '0.06em',
         }}>
           {preset.tag}
         </span>
       </div>
-
-      {/* Description */}
-      <div style={{
-        fontSize: 11.5, color: 'var(--text-muted)',
-        fontFamily: "'DM Sans', sans-serif", lineHeight: 1.45,
-      }}>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.45 }}>
         {preset.description}
       </div>
-
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
-        <StatPill label={`${nodeCount} nodes`} />
-        <StatPill label={`${edgeCount} edges`} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <StatPill label={`${preset.nodes.length} nodes`} />
+        <StatPill label={`${preset.edges.length} edges`} />
       </div>
     </button>
+  );
+}
+
+// ── Scenario card (AI-generated canvas) ──────────────────────────────────────
+function ScenarioCard({ scenario, onGenerate }: { scenario: PresetScenario; onGenerate: (prompt: string) => void }) {
+  const diffColor = DIFFICULTY_COLOR[scenario.difficulty] ?? '#64748B';
+  const objectives = scenario.learningObjectives ?? scenario.keyDecisions?.map(k => k.decision) ?? [];
+
+  const handleLoad = () => {
+    const objectives_text = objectives.slice(0, 3).join('. ');
+    const prompt = `${scenario.title} — ${objectives_text}`;
+    onGenerate(prompt);
+  };
+
+  return (
+    <div style={{
+      background: 'var(--card-bg)', border: '1px solid var(--border)',
+      borderRadius: 10, padding: '14px 16px',
+      display: 'flex', flexDirection: 'column', gap: 10,
+      transition: 'border-color 0.15s',
+    }}
+    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-bright)')}
+    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+    >
+      {/* Title row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.2 }}>
+          {scenario.title}
+        </div>
+        <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+          <span style={{
+            fontSize: 9.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace",
+            background: `${diffColor}18`, border: `1px solid ${diffColor}40`, color: diffColor,
+            borderRadius: 5, padding: '2px 7px', letterSpacing: '0.06em',
+          }}>{scenario.difficulty}</span>
+          <span style={{
+            fontSize: 9.5, fontFamily: "'IBM Plex Mono', monospace",
+            background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', color: '#818CF8',
+            borderRadius: 5, padding: '2px 7px',
+          }}>{scenario.domain}</span>
+        </div>
+      </div>
+
+      {/* Learning objectives */}
+      {objectives.length > 0 && (
+        <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {objectives.slice(0, 2).map((obj, i) => (
+            <li key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 11.5 }}>
+              <span style={{ color: '#7C3AED', flexShrink: 0, marginTop: 3, fontSize: 7 }}>◆</span>
+              <span style={{ color: 'var(--text-dim)', lineHeight: 1.45 }}>{obj}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Interview question */}
+      {scenario.commonInterviewQuestion && (
+        <div style={{
+          background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.18)',
+          borderRadius: 7, padding: '8px 10px',
+          fontSize: 11.5, color: '#94A3B8', lineHeight: 1.5, fontStyle: 'italic',
+        }}>
+          "{scenario.commonInterviewQuestion}"
+        </div>
+      )}
+
+      {/* Load button */}
+      <button
+        onClick={handleLoad}
+        style={{
+          padding: '7px 14px', borderRadius: 7, cursor: 'pointer',
+          background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.35)',
+          color: '#A78BFA', fontSize: 12, fontWeight: 600,
+          fontFamily: "'DM Sans', sans-serif", transition: 'all 0.12s',
+          alignSelf: 'flex-start',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.22)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.12)'; }}
+      >
+        ✦ Load on Canvas
+      </button>
+    </div>
   );
 }
 
@@ -409,8 +556,7 @@ function StatPill({ label }: { label: string }) {
     <span style={{
       fontSize: 10, fontFamily: "'IBM Plex Mono', monospace",
       color: 'var(--text-dim)', background: 'rgba(255,255,255,0.05)',
-      border: '1px solid var(--border)', borderRadius: 4,
-      padding: '1px 7px',
+      border: '1px solid var(--border)', borderRadius: 4, padding: '1px 7px',
     }}>
       {label}
     </span>
