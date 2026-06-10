@@ -1,4 +1,5 @@
 import { Router, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import UserProgress from '../models/UserProgress';
 import Scenario from '../models/Scenario';
 import LessonProgress from '../models/LessonProgress';
@@ -182,14 +183,19 @@ router.post('/interview', async (req: AuthRequest, res: Response, next: NextFunc
       return res.status(400).json({ error: 'scenarioId/challengeId, score, and timeSpent are required' });
     }
 
-    const scenario = await Scenario.findById(targetScenarioId);
+    const scenario = mongoose.Types.ObjectId.isValid(targetScenarioId)
+      ? await Scenario.findById(targetScenarioId)
+      : await Scenario.findOne({ $or: [{ 'metadata.id': targetScenarioId }, { title: targetScenarioId }] });
+
     if (!scenario) {
       return res.status(404).json({ error: 'Scenario/Challenge not found' });
     }
 
+    const resolvedScenarioId = scenario._id;
+
     let progress = await UserProgress.findOne({
       userId: req.user.userId,
-      scenarioId: targetScenarioId
+      scenarioId: resolvedScenarioId
     });
 
     if (progress) {
@@ -201,7 +207,7 @@ router.post('/interview', async (req: AuthRequest, res: Response, next: NextFunc
     } else {
       progress = new UserProgress({
         userId: req.user.userId,
-        scenarioId: targetScenarioId,
+        scenarioId: resolvedScenarioId,
         score,
         attempts: 1,
         timeSpent,

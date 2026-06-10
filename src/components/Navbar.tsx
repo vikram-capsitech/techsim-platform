@@ -314,14 +314,14 @@ const styles: Record<string, React.CSSProperties> = {
   divider: { width: 1, height: 20, background: 'var(--border)', margin: '0 4px' },
   saveBtn: {
     display: 'flex', alignItems: 'center', gap: 6,
-    padding: '6px 14px', borderRadius: 7,
+    height: 32, padding: '0 14px', borderRadius: 7,
     fontSize: 13, fontWeight: 600,
     fontFamily: "'DM Sans', sans-serif",
     cursor: 'pointer', transition: 'all 0.2s',
   },
   simBtn: {
     display: 'flex', alignItems: 'center', gap: 6,
-    padding: '6px 14px', borderRadius: 7,
+    height: 32, padding: '0 14px', borderRadius: 7,
     fontSize: 13, fontWeight: 600,
     fontFamily: "'DM Sans', sans-serif",
     background: 'rgba(6,182,212,0.12)',

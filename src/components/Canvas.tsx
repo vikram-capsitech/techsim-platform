@@ -126,6 +126,7 @@ export interface CanvasHandle {
   runValidation: () => void;
   highlightIssue: (issue: ValidationIssue) => void;
   loadPreset: (presetNodes: Node[], presetEdges: Edge[]) => void;
+  deselectAll: () => void;
 }
 
 interface CanvasProps {
@@ -229,6 +230,10 @@ export function Canvas({
             es.map((e) => ({ ...e, selected: e.id === issue.edgeId })),
           );
         }
+      },
+      deselectAll: () => {
+        setNodes(ns => ns.map(n => ({ ...n, selected: false })));
+        setEdges(es => es.map(e => ({ ...e, selected: false })));
       },
       loadPreset: (presetNodes, presetEdges) => {
         nodeTypeCountsRef.current.clear();
@@ -491,29 +496,18 @@ export function Canvas({
             onClick={onPresetsClick}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 12px',
+              height: 32, padding: '0 12px',
               background: 'rgba(16,185,129,0.12)',
               border: '1px solid rgba(16,185,129,0.35)',
-              borderRadius: 8,
-              color: '#34D399',
-              fontSize: 11.5,
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontWeight: 600,
-              cursor: 'pointer',
-              backdropFilter: 'blur(8px)',
-              boxShadow: '0 2px 16px rgba(0,0,0,0.4)',
-              transition: 'all 0.15s',
+              borderRadius: 8, color: '#34D399',
+              fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+              cursor: 'pointer', backdropFilter: 'blur(8px)',
+              boxShadow: '0 2px 16px rgba(0,0,0,0.4)', transition: 'all 0.15s',
             }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(16,185,129,0.22)';
-              e.currentTarget.style.borderColor = 'rgba(16,185,129,0.6)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(16,185,129,0.12)';
-              e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)';
-            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.22)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.6)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.12)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)'; }}
           >
-            <span style={{ fontSize: 13 }}>⊞</span>
+            <span style={{ fontSize: 13, lineHeight: 1 }}>⊞</span>
             Presets
           </button>
         )}
@@ -522,7 +516,7 @@ export function Canvas({
             onClick={onExport}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
-              padding: '5px 11px',
+              height: 32, padding: '0 11px',
               background: 'rgba(6,182,212,0.12)',
               border: '1px solid rgba(6,182,212,0.35)',
               borderRadius: 8, color: '#67E8F9',
@@ -541,7 +535,7 @@ export function Canvas({
           <label
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
-              padding: '5px 11px',
+              height: 32, padding: '0 11px',
               background: 'rgba(6,182,212,0.08)',
               border: '1px solid rgba(6,182,212,0.3)',
               borderRadius: 8, color: '#67E8F9',
@@ -563,31 +557,18 @@ export function Canvas({
           onClick={() => setShowAIPanel(true)}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px',
+            height: 32, padding: '0 12px',
             background: 'rgba(124,58,237,0.18)',
             border: '1px solid rgba(124,58,237,0.45)',
-            borderRadius: 8,
-            color: '#A78BFA',
-            fontSize: 11.5,
-            fontFamily: "'IBM Plex Mono', monospace",
-            fontWeight: 600,
-            cursor: 'pointer',
-            backdropFilter: 'blur(8px)',
-            boxShadow: '0 2px 16px rgba(0,0,0,0.4)',
-            transition: 'all 0.15s',
+            borderRadius: 8, color: '#A78BFA',
+            fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600,
+            cursor: 'pointer', backdropFilter: 'blur(8px)',
+            boxShadow: '0 2px 16px rgba(0,0,0,0.4)', transition: 'all 0.15s',
           }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(124,58,237,0.3)';
-            e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)';
-            e.currentTarget.style.boxShadow = '0 0 16px rgba(124,58,237,0.25)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'rgba(124,58,237,0.18)';
-            e.currentTarget.style.borderColor = 'rgba(124,58,237,0.45)';
-            e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.4)';
-          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.3)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(124,58,237,0.25)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.18)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.45)'; e.currentTarget.style.boxShadow = '0 2px 16px rgba(0,0,0,0.4)'; }}
         >
-          <span style={{ fontSize: 13 }}>✨</span>
+          <span style={{ fontSize: 13, lineHeight: 1 }}>✨</span>
           AI Generate
         </button>
         {onOpenWizard && (
@@ -595,7 +576,7 @@ export function Canvas({
             onClick={onOpenWizard}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 12px',
+              height: 32, padding: '0 12px',
               background: 'rgba(16,185,129,0.10)',
               border: '1px solid rgba(16,185,129,0.35)',
               borderRadius: 8, color: '#34D399',
@@ -607,7 +588,7 @@ export function Canvas({
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.2)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.6)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.10)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)'; }}
           >
-            <span style={{ fontSize: 13 }}>📋</span>
+            <span style={{ fontSize: 13, lineHeight: 1 }}>📋</span>
             Requirements
           </button>
         )}
@@ -615,7 +596,7 @@ export function Canvas({
           onClick={() => setShowChat(v => !v)}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            padding: '5px 12px',
+            height: 32, padding: '0 12px',
             background: showChat ? 'rgba(96,165,250,0.22)' : 'rgba(96,165,250,0.10)',
             border: `1px solid ${showChat ? 'rgba(96,165,250,0.6)' : 'rgba(96,165,250,0.35)'}`,
             borderRadius: 8, color: '#60A5FA',
@@ -625,7 +606,7 @@ export function Canvas({
             transition: 'all 0.15s',
           }}
         >
-          <span style={{ fontSize: 13 }}>💬</span>
+          <span style={{ fontSize: 13, lineHeight: 1 }}>💬</span>
           Ask AI
         </button>
       </div>

@@ -1,23 +1,8 @@
 import { Router, Response } from 'express';
-import mongoose from 'mongoose';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import Feedback from '../models/Feedback';
 
 const router = Router();
-
-const FeedbackSchema = new mongoose.Schema({
-  type: { type: String, enum: ['bug', 'feature', 'improvement', 'other'] },
-  title: String,
-  description: String,
-  email: String,
-  priority: { type: String, enum: ['low', 'medium', 'high'] },
-  page: String,
-  userAgent: String,
-  status: { type: String, default: 'new' },
-  createdAt: { type: Date, default: Date.now }
-});
-
-// Avoid recompiling model on hot reloads
-const Feedback = mongoose.models.Feedback || mongoose.model('Feedback', FeedbackSchema);
 
 // POST /api/feedback — public route, no auth required
 router.post('/', async (req, res) => {

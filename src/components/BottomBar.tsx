@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Play, Square, RefreshCw, Clock, Layers3 } from 'lucide-react';
+import { AlertTriangle, Play, Square, RefreshCw, Clock, Layers3, X, RefreshCcw } from 'lucide-react';
 import type { SimMetrics, NodeState } from '../simulation/SimulationEngine';
 import type { ValidationIssue } from '../types';
 import { getValidChaos, CHAOS_LABELS, CHAOS_TO_ACTION } from '../data/chaosValidation';
@@ -53,6 +53,7 @@ function ChaosArea({
   selectedNodeType,
   selectedNodeSimState,
   injectChaos,
+  onClose,
 }: {
   isRunning: boolean;
   selectedNodeId: string | null;
@@ -60,6 +61,7 @@ function ChaosArea({
   selectedNodeType: string | null;
   selectedNodeSimState: NodeState | null;
   injectChaos: (type: string, targetId: string) => void;
+  onClose: () => void;
 }) {
   const [blockedModal, setBlockedModal] = useState<ChaosBlockedInfo | null>(null);
 
@@ -78,7 +80,7 @@ function ChaosArea({
         chaosLabel: CHAOS_LABELS[chaosId] ?? chaosId,
         nodeType: selectedNodeType ?? '',
         nodeName: selectedNodeName ?? selectedNodeId,
-        reason: blocked?.reason ?? `${CHAOS_LABELS[chaosId] ?? chaosId} cannot affect ${selectedNodeType ?? 'this'} nodes. This failure mode only occurs in specific infrastructure components.`,
+        reason: blocked?.reason ?? `${CHAOS_LABELS[chaosId] ?? chaosId} cannot affect ${selectedNodeType ?? 'this'} nodes.`,
         validForTypes: blocked?.validForTypes ?? [],
         validChaosForThisNode: Array.from(validSet),
       });
@@ -95,168 +97,178 @@ function ChaosArea({
       <div
         style={{
           position: 'fixed',
-          bottom: 62,
-          left: 12,
-          width: 300,
-          maxHeight: 'calc(100vh - 140px)',
+          bottom: 66,          /* just above 58px bottom bar + 4px gap */
+          left: 228,           /* past sidebar (220px) + 8px margin */
+          width: 310,
+          maxHeight: 'calc(100vh - 150px)',
           overflowY: 'auto',
           background: 'var(--sidebar-bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          boxShadow: '0 8px 40px rgba(0,0,0,0.55)',
+          border: '1px solid rgba(239,68,68,0.25)',
+          borderRadius: 12,
+          boxShadow: '0 12px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(239,68,68,0.08)',
           zIndex: 50,
-          padding: '10px 12px 12px',
+          padding: '0 0 12px',
           fontFamily: "'DM Sans', sans-serif",
         }}
       >
-        {/* Targeting header */}
+        {/* Header bar */}
         <div style={{
-          fontSize: 11,
-          marginBottom: 10,
-          padding: '5px 8px',
-          background: 'rgba(255,255,255,0.04)',
-          borderRadius: 6,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 12px 9px',
+          borderBottom: '1px solid var(--border)',
+          background: 'rgba(239,68,68,0.04)',
+          borderRadius: '12px 12px 0 0',
         }}>
-          <span style={{ color: 'var(--text-secondary)' }}>
-            Target:{' '}
-            <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase', fontFamily: "'IBM Plex Mono', monospace",
+              color: '#EF4444',
+            }}>
+              ⚡ Chaos Target
+            </span>
+            <span style={{
+              fontSize: 11.5, fontWeight: 600, color: 'var(--text)',
+              maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
               {selectedNodeName ?? selectedNodeId}
-            </strong>
-          </span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>
-            {validSet.size} applicable
-          </span>
+            </span>
+            <span style={{
+              fontSize: 9.5, fontFamily: "'IBM Plex Mono', monospace",
+              color: '#EF4444', background: 'rgba(239,68,68,0.12)',
+              border: '1px solid rgba(239,68,68,0.25)', borderRadius: 4,
+              padding: '1px 6px',
+            }}>
+              {validSet.size} valid
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 24, height: 24, borderRadius: 6,
+              background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
+              color: 'var(--text-muted)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#EF4444'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+          >
+            <X size={11} />
+          </button>
         </div>
 
-        {/* DOWN banner */}
-        {nodeDown && (
-          <div style={{
-            marginBottom: 10,
-            padding: '7px 10px',
-            background: 'rgba(16,185,129,0.08)',
-            border: '1px solid rgba(16,185,129,0.3)',
-            borderRadius: 7,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-          }}>
-            <div>
-              <div style={{ color: '#10B981', fontSize: 11, fontWeight: 600 }}>Node is DOWN</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>Heal it before injecting more chaos</div>
+        <div style={{ padding: '10px 12px 0' }}>
+          {/* DOWN banner with prominent Restart */}
+          {nodeDown && (
+            <div style={{
+              marginBottom: 10,
+              padding: '10px 12px',
+              background: 'rgba(16,185,129,0.08)',
+              border: '1px solid rgba(16,185,129,0.35)',
+              borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+            }}>
+              <div>
+                <div style={{ color: '#10B981', fontSize: 12, fontWeight: 700, marginBottom: 2 }}>
+                  Node is DOWN
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.4 }}>
+                  Heal before injecting more chaos
+                </div>
+              </div>
+              <button
+                onClick={() => injectChaos('heal', selectedNodeId)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: '#10B981',
+                  border: '1px solid #10B98180',
+                  color: 'white',
+                  borderRadius: 7,
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  boxShadow: '0 0 12px rgba(16,185,129,0.3)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#059669'; e.currentTarget.style.boxShadow = '0 0 18px rgba(16,185,129,0.5)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#10B981'; e.currentTarget.style.boxShadow = '0 0 12px rgba(16,185,129,0.3)'; }}
+              >
+                <RefreshCcw size={12} />
+                Restart
+              </button>
             </div>
+          )}
+
+          {/* Grouped scenarios */}
+          {Object.entries(GROUPED).map(([category, scenarios]) => (
+            <div key={category} style={{ marginBottom: 10 }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, color: 'var(--text-muted)',
+                letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5,
+                fontFamily: "'IBM Plex Mono', monospace",
+              }}>
+                {category}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {scenarios.map(scenario => {
+                  const isValid = validSet.has(scenario.id) && !nodeDown;
+                  const label = CHAOS_LABELS[scenario.id] ?? scenario.id;
+                  return (
+                    <button
+                      key={scenario.id}
+                      onClick={() => handleClick(scenario.id)}
+                      title={isValid
+                        ? `Apply ${label} to ${selectedNodeName ?? selectedNodeId}`
+                        : nodeDown ? 'Heal the node first'
+                        : `${label} — not applicable here (click to learn why)`}
+                      style={{
+                        background: isValid ? '#EF444415' : 'transparent',
+                        border: `1px solid ${isValid ? '#EF444440' : 'var(--border)'}`,
+                        color: isValid ? '#EF4444' : 'var(--text-muted)',
+                        borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+                        fontSize: 11, fontWeight: isValid ? 500 : 400,
+                        opacity: isValid ? 1 : 0.45, transition: 'all 0.15s',
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                      }}
+                      onMouseEnter={e => {
+                        if (isValid) { e.currentTarget.style.background = '#EF444425'; e.currentTarget.style.borderColor = '#EF444466'; }
+                        else { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = isValid ? '#EF444415' : 'transparent';
+                        e.currentTarget.style.borderColor = isValid ? '#EF444440' : 'var(--border)';
+                        e.currentTarget.style.opacity = isValid ? '1' : '0.45';
+                      }}
+                    >
+                      {label}
+                      {!isValid && !nodeDown && <span style={{ fontSize: 9, opacity: 0.7 }}>🔒</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Heal / Restart Node */}
+          <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
             <button
               onClick={() => injectChaos('heal', selectedNodeId)}
               style={{
-                background: '#10B981',
-                border: 'none',
-                color: 'white',
-                borderRadius: 6,
-                padding: '4px 10px',
-                cursor: 'pointer',
-                fontSize: 11,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: '#10B98112', border: '1px solid #10B98135',
+                color: '#10B981', borderRadius: 7, padding: '7px',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
               }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#10B98122'; e.currentTarget.style.borderColor = '#10B98155'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#10B98112'; e.currentTarget.style.borderColor = '#10B98135'; }}
             >
-              ↺ Restart
+              <RefreshCcw size={12} />
+              Heal / Restart Node
             </button>
           </div>
-        )}
-
-        {/* Grouped scenarios */}
-        {Object.entries(GROUPED).map(([category, scenarios]) => (
-          <div key={category} style={{ marginBottom: 10 }}>
-            <div style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: 'var(--text-muted)',
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              marginBottom: 5,
-              fontFamily: "'IBM Plex Mono', monospace",
-            }}>
-              {category}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {scenarios.map(scenario => {
-                const isValid = validSet.has(scenario.id) && !nodeDown;
-                const label = CHAOS_LABELS[scenario.id] ?? scenario.id;
-                return (
-                  <button
-                    key={scenario.id}
-                    onClick={() => handleClick(scenario.id)}
-                    title={isValid
-                      ? `Apply ${label} to ${selectedNodeName ?? selectedNodeId}`
-                      : nodeDown
-                        ? 'Heal the node first'
-                        : `${label} — not applicable here (click to learn why)`}
-                    style={{
-                      background: isValid ? '#EF444415' : 'transparent',
-                      border: `1px solid ${isValid ? '#EF444440' : 'var(--border)'}`,
-                      color: isValid ? '#EF4444' : 'var(--text-muted)',
-                      borderRadius: 6,
-                      padding: '3px 8px',
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: isValid ? 500 : 400,
-                      opacity: isValid ? 1 : 0.45,
-                      transition: 'all 0.15s',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                    }}
-                    onMouseEnter={e => {
-                      if (isValid) {
-                        e.currentTarget.style.background = '#EF444425';
-                        e.currentTarget.style.borderColor = '#EF444466';
-                      } else {
-                        e.currentTarget.style.opacity = '0.7';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = isValid ? '#EF444415' : 'transparent';
-                      e.currentTarget.style.borderColor = isValid ? '#EF444440' : 'var(--border)';
-                      e.currentTarget.style.opacity = isValid ? '1' : '0.45';
-                    }}
-                  >
-                    {label}
-                    {!isValid && !nodeDown && (
-                      <span style={{ fontSize: 9, opacity: 0.7 }}>🔒</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* Heal button */}
-        <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 2 }}>
-          <button
-            onClick={() => injectChaos('heal', selectedNodeId)}
-            style={{
-              width: '100%',
-              background: '#10B98115',
-              border: '1px solid #10B98140',
-              color: '#10B981',
-              borderRadius: 6,
-              padding: '5px',
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: 500,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#10B98125'; e.currentTarget.style.borderColor = '#10B98160'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#10B98115'; e.currentTarget.style.borderColor = '#10B98140'; }}
-          >
-            💚 Heal / Restart Node
-          </button>
         </div>
       </div>
 
@@ -363,61 +375,43 @@ function SimSlider({
   );
 }
 
-// ── Status legend item (two-line: name + description) ───────────────────────
+// ── Status legend item (compact: dot + label only) ──────────────────────────
 function StatusItem({ color, label, sub }: { color: string; label: string; sub: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{
-          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-          background: color, boxShadow: `0 0 4px ${color}88`,
-        }} />
-        <span style={{
-          fontSize: 10, color: 'var(--text-dim)',
-          fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-          whiteSpace: 'nowrap',
-        }}>
-          {label}
-        </span>
-      </div>
+    <div title={sub} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'default' }}>
       <span style={{
-        fontSize: 8.5, color: 'var(--text-muted)',
-        paddingLeft: 10, whiteSpace: 'nowrap',
-        fontFamily: "'IBM Plex Mono', monospace",
+        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+        background: color, boxShadow: `0 0 4px ${color}88`,
+      }} />
+      <span style={{
+        fontSize: 10, color: 'var(--text-dim)',
+        fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+        whiteSpace: 'nowrap',
       }}>
-        {sub}
+        {label}
       </span>
     </div>
   );
 }
 
-// ── Packet flow legend item ──────────────────────────────────────────────────
+// ── Packet flow legend item (compact: dot + label only) ─────────────────────
 function PacketItem({ color, label, sub, square }: { color: string; label: string; sub: string; square?: boolean }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{
-          width: square ? 6 : 5,
-          height: square ? 6 : 5,
-          borderRadius: square ? 1 : '50%',
-          flexShrink: 0,
-          background: color,
-          boxShadow: `0 0 4px ${color}88`,
-        }} />
-        <span style={{
-          fontSize: 10, color: 'var(--text-dim)',
-          fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-          whiteSpace: 'nowrap',
-        }}>
-          {label}
-        </span>
-      </div>
+    <div title={sub} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'default' }}>
       <span style={{
-        fontSize: 8.5, color: 'var(--text-muted)',
-        paddingLeft: 9, whiteSpace: 'nowrap',
-        fontFamily: "'IBM Plex Mono', monospace",
+        width: square ? 6 : 5,
+        height: square ? 6 : 5,
+        borderRadius: square ? 1 : '50%',
+        flexShrink: 0,
+        background: color,
+        boxShadow: `0 0 4px ${color}88`,
+      }} />
+      <span style={{
+        fontSize: 10, color: 'var(--text-dim)',
+        fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+        whiteSpace: 'nowrap',
       }}>
-        {sub}
+        {label}
       </span>
     </div>
   );
@@ -473,6 +467,7 @@ export interface BottomBarProps {
   activeNodeCount: number;
   totalNodeCount: number;
   onScoreClick?: () => void;
+  onDeselectNode?: () => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -486,6 +481,7 @@ export function BottomBar({
   traffic, onTrafficChange,
   activeNodeCount, totalNodeCount,
   onScoreClick,
+  onDeselectNode,
 }: BottomBarProps) {
   const criticalCount = issues.filter(i => i.severity === 'critical' || i.severity === 'error').length;
   const warnCount    = issues.filter(i => i.severity === 'warning').length;
@@ -507,7 +503,9 @@ export function BottomBar({
           gap: 10,
           flexShrink: 0,
           zIndex: 10,
-          overflow: 'hidden',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollbarWidth: 'none',
         }}
       >
         {/* ── LEFT: issues + run + chaos indicator ─────────────────── */}
@@ -666,7 +664,7 @@ export function BottomBar({
         </div>
       </div>
 
-      {/* Floating chaos panel — outside overflow:hidden bar div */}
+      {/* Floating chaos panel — outside bar div */}
       <ChaosArea
         isRunning={isRunning}
         selectedNodeId={selectedNodeId}
@@ -674,6 +672,7 @@ export function BottomBar({
         selectedNodeType={selectedNodeTypeId}
         selectedNodeSimState={selectedNodeSimState}
         injectChaos={injectChaos}
+        onClose={onDeselectNode ?? (() => {})}
       />
     </>
   );
