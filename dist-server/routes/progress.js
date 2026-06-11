@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const mongoose_1 = __importDefault(require("mongoose"));
 const UserProgress_1 = __importDefault(require("../models/UserProgress"));
 const Scenario_1 = __importDefault(require("../models/Scenario"));
 const LessonProgress_1 = __importDefault(require("../models/LessonProgress"));
@@ -156,13 +157,16 @@ router.post('/interview', async (req, res, next) => {
         if (!targetScenarioId || score === undefined || timeSpent === undefined) {
             return res.status(400).json({ error: 'scenarioId/challengeId, score, and timeSpent are required' });
         }
-        const scenario = await Scenario_1.default.findById(targetScenarioId);
+        const scenario = mongoose_1.default.Types.ObjectId.isValid(targetScenarioId)
+            ? await Scenario_1.default.findById(targetScenarioId)
+            : await Scenario_1.default.findOne({ $or: [{ 'metadata.id': targetScenarioId }, { title: targetScenarioId }] });
         if (!scenario) {
             return res.status(404).json({ error: 'Scenario/Challenge not found' });
         }
+        const resolvedScenarioId = scenario._id;
         let progress = await UserProgress_1.default.findOne({
             userId: req.user.userId,
-            scenarioId: targetScenarioId
+            scenarioId: resolvedScenarioId
         });
         if (progress) {
             progress.attempts = (progress.attempts || 0) + 1;
@@ -174,7 +178,7 @@ router.post('/interview', async (req, res, next) => {
         else {
             progress = new UserProgress_1.default({
                 userId: req.user.userId,
-                scenarioId: targetScenarioId,
+                scenarioId: resolvedScenarioId,
                 score,
                 attempts: 1,
                 timeSpent,
@@ -194,8 +198,18 @@ router.post('/interview', async (req, res, next) => {
 // Returns top 10 scores for a challenge
 router.get('/leaderboard/:challengeId', async (req, res, next) => {
     try {
+        const { challengeId } = req.params;
+        if (typeof challengeId !== 'string') {
+            return res.status(400).json({ error: 'Invalid challengeId' });
+        }
+        const scenario = mongoose_1.default.Types.ObjectId.isValid(challengeId)
+            ? await Scenario_1.default.findById(challengeId)
+            : await Scenario_1.default.findOne({ $or: [{ 'metadata.id': challengeId }, { title: challengeId }] });
+        if (!scenario) {
+            return res.status(404).json({ error: 'Scenario/Challenge not found' });
+        }
         const topScores = await UserProgress_1.default.find({
-            scenarioId: req.params.challengeId
+            scenarioId: scenario._id
         })
             .sort({ score: -1 })
             .limit(10)

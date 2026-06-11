@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Zap, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface RegisterPageProps {
@@ -58,18 +58,25 @@ export function RegisterPage({ onGoToLogin }: RegisterPageProps) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px var(--accent-glow)' }}>
-            <Zap size={18} color="white" strokeWidth={2.5} />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="6" height="6" rx="1.5" />
+              <rect x="16" y="2" width="6" height="6" rx="1.5" />
+              <rect x="9" y="16" width="6" height="6" rx="1.5" />
+              <path d="M5 8v4a2 2 0 0 0 2 2h2" />
+              <path d="M19 8v4a2 2 0 0 1-2 2h-2" />
+              <path d="M12 16v-2" />
+            </svg>
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.03em', lineHeight: 1.1 }}>TechSim</div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>Infrastructure Platform</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.03em', lineHeight: 1.1 }}>SystemCraft</div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>System Design University</div>
           </div>
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.02em', marginBottom: 6 }}>
           Create your account
         </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 24 }}>Join TechSim and start designing your infrastructure.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 24 }}>Join SystemCraft and start designing your distributed systems.</p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
           <RegField label="Username" type="text" value={username} onChange={setUsername} placeholder="handle" autoFocus />

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express'
 
 // Plan feature limits
 export const PLAN_FEATURES = {
@@ -29,9 +29,9 @@ export const PLAN_FEATURES = {
     interviewChallengesPerDay: Infinity,
     simulationEnabled: true,
   }
-} as const;
+} as const
 
-export type PlanFeature = keyof typeof PLAN_FEATURES.free;
+export type PlanFeature = keyof typeof PLAN_FEATURES.free
 
 // Middleware factory — add to any route that needs plan checking
 // Currently PASSES ALL — billing logic added Sprint 10
@@ -49,16 +49,15 @@ export const requirePlan = (minimumPlan: 'free' | 'pro' | 'team') => {
     //     upgradeUrl: '/settings#upgrade'
     //   })
     // }
-    next(); // Always passes for now
-  };
-};
+    next() // Always passes for now
+  }
+}
 
 // Check feature limits (diagram count, AI calls etc)
 export const checkLimit = (feature: PlanFeature) => {
   return async (req: any, res: Response, next: NextFunction) => {
     // Sprint 10: add actual counting logic here
     // For now just passes through
-    void feature;
-    next();
-  };
-};
+    next()
+  }
+}

@@ -229,9 +229,9 @@ export class SimulationEngine {
     const node = this.nodes.get(nodeId);
     if (!node) return;
 
-    console.log('[CHAOS] Crashing node:', nodeId);
+    console.log('[SIM] crashNode:', nodeId);
     this.downNodes.add(nodeId);
-    console.log('[CHAOS] downNodes set:', Array.from(this.downNodes));
+    console.log('[SIM] downNodes now:', Array.from(this.downNodes));
 
     node.status = 'down';
     node.currentLoad = 0;
@@ -562,6 +562,17 @@ export class SimulationEngine {
         continue;
       }
 
+      const hasDownUpstream = this.getUpstreamNodes(nodeId).some((id) => this.downNodes.has(id));
+      if (hasDownUpstream) {
+        node.currentLoad = smooth(node.currentLoad, 0, dt, 8);
+        node.queueDepth = 0;
+        node.errorRate = Math.max(node.errorRate, 0.4);
+        node.status = 'degraded';
+        node.cpuUsage = smooth(node.cpuUsage, 8, dt, 4);
+        node.memoryUsage = smooth(node.memoryUsage, 12, dt, 4);
+        continue;
+      }
+
       const meta = this.nodeMeta.get(nodeId);
       const isQueue = meta?.category === 'messaging';
       const handledLoad = this.applyQueuePhysics(node, inbound, isQueue, dt);
@@ -593,11 +604,32 @@ export class SimulationEngine {
       }
     }
 
+    let packetsCleared = false;
     for (const edge of this.edges.values()) {
+      const srcDown = this.downNodes.has(edge.source);
+      const tgtDown = this.downNodes.has(edge.target);
+      const srcNodeState = this.nodes.get(edge.source);
+
+      if (
+        edge.isBlocked ||
+        edge.isPartitioned ||
+        srcDown ||
+        tgtDown ||
+        srcNodeState?.status === 'down'
+      ) {
+        edge.bandwidth = 0;
+        if (edge.packets.length > 0) {
+          edge.packets = [];
+          packetsCleared = true;
+        }
+        continue;
+      }
+
       // Fast drain (0.5s) for edges with no active load — prevents ghost packets after upstream crash
       if (!edgeLoads.has(edge.id)) edge.bandwidth = smooth(edge.bandwidth, 0, dt, 0.5);
       this.advancePackets(edge);
     }
+    if (packetsCleared) this.emit();
   }
 
   private applyQueuePhysics(node: NodeState, inbound: number, isQueue: boolean, dt: number): number {

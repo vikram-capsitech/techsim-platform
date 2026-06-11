@@ -8,6 +8,15 @@ import { ArchitectureScoreCard } from '../components/ArchitectureScoreCard';
 import { useSimulation } from '../simulation/useSimulation';
 import { useTheme } from '../context/ThemeContext';
 import { aiApi } from '../api/client';
+import apiClient from '../api/client';
+
+interface AIFeedback {
+  verdict: string;
+  summary: string;
+  strengths?: string[];
+  improvements?: string[];
+  score?: number;
+}
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy:   '#22C55E',
@@ -35,6 +44,8 @@ export function InterviewSession() {
   const [activeTab, setActiveTab] = useState<'reqs' | 'hints' | 'chat'>('reqs');
   const [topology, setTopology] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] });
   const [showScore, setShowScore] = useState(false);
+  const [aiScore, setAiScore] = useState<AIFeedback | null>(null);
+  const [aiScoreLoading, setAiScoreLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMsgs, setChatMsgs] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -69,9 +80,24 @@ export function InterviewSession() {
     setHintsUsed(prev => [...prev, i]);
   };
 
-  const submitChallenge = () => {
+  const submitChallenge = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setFinished(true);
+    setAiScoreLoading(true);
+    try {
+      const res = await apiClient.post<AIFeedback>('/api/ai/interview-feedback', {
+        challengeId: challenge?.id,
+        nodes: topology.nodes,
+        edges: topology.edges,
+        timeUsed: challenge ? Math.round((challenge.timeLimit * 60 - timeLeft) / 60) : 0,
+        hintsUsed: hintsUsed.length,
+      });
+      setAiScore(res.data);
+    } catch {
+      // local ArchitectureScoreCard shown as fallback
+    } finally {
+      setAiScoreLoading(false);
+    }
     setShowScore(true);
   };
 
@@ -106,11 +132,11 @@ export function InterviewSession() {
 
   if (!challenge) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48 }}>🤔</div>
-          <div style={{ fontSize: 16, color: 'var(--text)', margin: '12px 0 16px' }}>Challenge not found</div>
-          <button onClick={() => navigate('/interview')} style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 7, padding: '8px 18px', cursor: 'pointer' }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🤔</div>
+          <div style={{ fontSize: 16, color: 'var(--text)', margin: '12px 0 16px', fontFamily: "'DM Sans', sans-serif" }}>Challenge not found</div>
+          <button onClick={() => navigate('/interview')} style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
             Back to Challenges
           </button>
         </div>
@@ -126,47 +152,82 @@ export function InterviewSession() {
   /* ── Pre-start briefing ── */
   if (!started) {
     return (
-      <div style={{ flex: 1, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{
+        height: '100vh', width: '100vw',
+        background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'DM Sans', sans-serif",
+        backgroundImage: 'radial-gradient(ellipse at 60% 40%, rgba(124,58,237,0.06) 0%, transparent 60%)',
+      }}>
         <div style={{
-          width: 560, background: 'var(--panel-bg)', border: '1px solid var(--border)',
-          borderRadius: 16, padding: '32px', boxShadow: '0 16px 60px rgba(0,0,0,0.5)',
+          width: 520,
+          background: 'var(--panel-bg)',
+          border: '1px solid var(--border)',
+          borderRadius: 18,
+          padding: '36px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.04) inset',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          {/* Header badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
             <span style={{
-              fontSize: 11, padding: '3px 10px', borderRadius: 5, fontFamily: "'IBM Plex Mono', monospace",
-              fontWeight: 700, background: diffColor + '18', border: `1px solid ${diffColor}35`, color: diffColor,
+              fontSize: 10.5, padding: '3px 10px', borderRadius: 20,
+              fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: '0.05em',
+              background: diffColor + '18', border: `1px solid ${diffColor}30`, color: diffColor,
+              textTransform: 'uppercase',
             }}>{challenge.difficulty}</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>
-              ⏱ {challenge.timeLimit} min
-            </span>
+            <span style={{
+              fontSize: 10.5, padding: '3px 10px', borderRadius: 20,
+              fontFamily: "'IBM Plex Mono', monospace", color: 'var(--text-muted)',
+              background: 'var(--card-bg)', border: '1px solid var(--border)',
+            }}>⏱ {challenge.timeLimit} min</span>
           </div>
 
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 10px', color: 'var(--text)' }}>{challenge.title}</h2>
-          <p style={{ fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.65, margin: '0 0 20px' }}>{challenge.description}</p>
+          <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 10px', color: 'var(--text)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            {challenge.title}
+          </h2>
+          <p style={{ fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.7, margin: '0 0 24px' }}>
+            {challenge.description}
+          </p>
 
-          <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>System Scale</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          {/* Scale grid */}
+          <div style={{
+            background: 'var(--bg)', borderRadius: 10, padding: '14px 16px', marginBottom: 24,
+            border: '1px solid var(--border-dim)',
+          }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+              System Scale
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               {[['Users', challenge.scale.users], ['Throughput', challenge.scale.rps], ['Storage', challenge.scale.storage]].map(([k, v]) => (
                 <div key={k}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>{k}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace" }}>{v}</div>
+                  <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", marginBottom: 3 }}>{k}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace" }}>{v}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => navigate('/interview')} style={{
-              flex: 1, padding: '11px', borderRadius: 8, border: '1px solid var(--border)',
-              background: 'var(--card-bg)', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, fontWeight: 500,
-            }}>
+              flex: 1, padding: '11px', borderRadius: 10, border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
+              fontSize: 13.5, fontWeight: 500, fontFamily: "'DM Sans', sans-serif",
+              transition: 'all 0.15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-bg)'; e.currentTarget.style.color = 'var(--text)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-dim)'; }}
+            >
               ← Back
             </button>
             <button onClick={() => setStarted(true)} style={{
-              flex: 2, padding: '11px', borderRadius: 8, border: 'none',
-              background: diffColor, color: 'white', cursor: 'pointer', fontSize: 15, fontWeight: 700,
-            }}>
+              flex: 2, padding: '11px', borderRadius: 10, border: 'none',
+              background: diffColor, color: 'white', cursor: 'pointer',
+              fontSize: 14.5, fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
+              boxShadow: `0 4px 20px ${diffColor}40`,
+              transition: 'all 0.15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${diffColor}50`; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = `0 4px 20px ${diffColor}40`; }}
+            >
               Start Challenge →
             </button>
           </div>
@@ -177,143 +238,349 @@ export function InterviewSession() {
 
   /* ── Active session ── */
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)', fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Top bar */}
+    <div style={{
+      height: '100vh',
+      width: '100vw',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      background: 'var(--bg)',
+      fontFamily: "'DM Sans', sans-serif",
+    }}>
+      {/* ── Top bar ── */}
       <div style={{
-        height: 48, flexShrink: 0,
-        background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', padding: '0 16px', gap: 16, zIndex: 10,
+        height: 50,
+        flexShrink: 0,
+        background: 'var(--sidebar-bg)',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 12px 0 8px',
+        gap: 10,
+        zIndex: 10,
       }}>
-        <button onClick={() => setLeftOpen(v => !v)} style={{
-          background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16,
-        }}>
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setLeftOpen(v => !v)}
+          title={leftOpen ? 'Collapse panel' : 'Expand panel'}
+          style={{
+            width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: '1px solid transparent', borderRadius: 7,
+            color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, flexShrink: 0,
+            transition: 'all 0.12s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-bg)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+        >
           {leftOpen ? '◀' : '▶'}
         </button>
-        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', flex: 1 }}>{challenge.title}</span>
-        <span style={{
-          fontSize: 13, fontWeight: 700,
-          fontFamily: "'IBM Plex Mono', monospace",
-          color: timeWarning ? '#EF4444' : 'var(--text)',
-          background: timeWarning ? 'rgba(239,68,68,0.1)' : 'var(--card-bg)',
-          border: `1px solid ${timeWarning ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
-          padding: '4px 12px', borderRadius: 6,
-        }}>
-          {timeUp ? 'TIME UP' : fmt(timeLeft)}
-        </span>
-        <button onClick={() => setShowScore(true)} style={{
-          padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)',
-          background: 'var(--card-bg)', color: '#A78BFA', cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
-        }}>
-          📊 Score
-        </button>
-        {!finished && (
-          <button onClick={submitChallenge} style={{
-            padding: '5px 14px', borderRadius: 6, border: 'none',
-            background: diffColor, color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+
+        {/* Difficulty pip + title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: diffColor, flexShrink: 0,
+            boxShadow: `0 0 6px ${diffColor}80`,
+          }} />
+          <span style={{
+            fontSize: 13.5, fontWeight: 650, color: 'var(--text)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
+            {challenge.title}
+          </span>
+          <span style={{
+            fontSize: 10, padding: '2px 7px', borderRadius: 20,
+            fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: '0.04em',
+            background: diffColor + '15', border: `1px solid ${diffColor}28`, color: diffColor,
+            flexShrink: 0,
+          }}>
+            {challenge.difficulty}
+          </span>
+        </div>
+
+        {/* Timer */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '5px 12px', borderRadius: 8,
+          background: timeWarning ? 'rgba(239,68,68,0.08)' : 'var(--card-bg)',
+          border: `1px solid ${timeWarning ? 'rgba(239,68,68,0.25)' : 'var(--border)'}`,
+          transition: 'all 0.3s',
+        }}>
+          <span style={{ fontSize: 10, color: timeWarning ? '#EF4444' : 'var(--text-muted)', opacity: 0.7 }}>⏱</span>
+          <span style={{
+            fontSize: 13, fontWeight: 700,
+            fontFamily: "'IBM Plex Mono', monospace",
+            color: timeWarning ? '#EF4444' : 'var(--text)',
+            letterSpacing: '0.05em',
+          }}>
+            {timeUp ? 'TIME UP' : fmt(timeLeft)}
+          </span>
+        </div>
+
+        {/* Score button */}
+        <button
+          onClick={() => setShowScore(true)}
+          style={{
+            padding: '5px 12px', borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--card-bg)',
+            color: '#A78BFA', cursor: 'pointer',
+            fontSize: 12, fontWeight: 600,
+            fontFamily: "'DM Sans', sans-serif",
+            display: 'flex', alignItems: 'center', gap: 5,
+            transition: 'all 0.12s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(167,139,250,0.4)'; e.currentTarget.style.background = 'rgba(124,58,237,0.08)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card-bg)'; }}
+        >
+          <span>📊</span> Score
+        </button>
+
+        {/* Submit button */}
+        {!finished && (
+          <button
+            onClick={submitChallenge}
+            style={{
+              padding: '5px 16px', borderRadius: 8, border: 'none',
+              background: diffColor, color: 'white', cursor: 'pointer',
+              fontSize: 12.5, fontWeight: 700,
+              fontFamily: "'DM Sans', sans-serif",
+              boxShadow: `0 2px 12px ${diffColor}35`,
+              transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${diffColor}50`; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = `0 2px 12px ${diffColor}35`; }}
+          >
             Submit →
           </button>
         )}
-        <button onClick={() => navigate('/interview')} style={{
-          background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1,
-        }}>×</button>
+
+        {/* Close */}
+        <button
+          onClick={() => navigate('/interview')}
+          style={{
+            width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: '1px solid transparent', borderRadius: 7,
+            color: 'var(--text-muted)', cursor: 'pointer', fontSize: 17, lineHeight: 1,
+            transition: 'all 0.12s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; e.currentTarget.style.color = '#EF4444'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+        >
+          ×
+        </button>
       </div>
 
-      {/* Body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left panel */}
+      {/* ── Body ── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+
+        {/* ── Left panel ── */}
         {leftOpen && (
           <div style={{
-            width: 320, flexShrink: 0,
-            background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            width: 300,
+            flexShrink: 0,
+            background: 'var(--sidebar-bg)',
+            borderRight: '1px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
           }}>
             {/* Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-              {(['reqs', 'hints', 'chat'] as const).map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  style={{
-                    flex: 1, padding: '10px 0', border: 'none', cursor: 'pointer',
-                    background: activeTab === tab ? 'var(--card-bg)' : 'transparent',
-                    color: activeTab === tab ? 'var(--text)' : 'var(--text-dim)',
-                    fontSize: 12.5, fontWeight: activeTab === tab ? 600 : 400,
-                    borderBottom: activeTab === tab ? `2px solid var(--accent)` : '2px solid transparent',
-                  }}
-                >
-                  {tab === 'reqs' ? 'Requirements' : tab === 'hints' ? `Hints (${hintsUsed.length}/${challenge.hints.length})` : 'AI Chat'}
-                </button>
-              ))}
+            <div style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border)',
+              padding: '0 4px',
+              gap: 2,
+              background: 'var(--sidebar-bg)',
+            }}>
+              {(['reqs', 'hints', 'chat'] as const).map(tab => {
+                const isActive = activeTab === tab;
+                const label = tab === 'reqs' ? 'Requirements' : tab === 'hints' ? `Hints  ${hintsUsed.length}/${challenge.hints.length}` : 'AI Chat';
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    style={{
+                      flex: 1, padding: '10px 4px 9px',
+                      border: 'none', cursor: 'pointer',
+                      background: 'transparent',
+                      color: isActive ? 'var(--text)' : 'var(--text-muted)',
+                      fontSize: 11.5,
+                      fontWeight: isActive ? 650 : 400,
+                      fontFamily: "'DM Sans', sans-serif",
+                      borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                      transition: 'all 0.12s',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'var(--text-dim)'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'var(--text-muted)'; }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Panel content */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px' }}>
+
+              {/* ── Requirements ── */}
               {activeTab === 'reqs' && (
-                <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                   <Section title="Description">
-                    <p style={{ fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.65, margin: 0 }}>
+                    <p style={{ fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.7, margin: 0 }}>
                       {challenge.description}
                     </p>
                   </Section>
+
                   <Section title="Functional Requirements">
-                    <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.7 }}>
-                      {challenge.functionalReqs.map((r, i) => <li key={i}>{r}</li>)}
-                    </ul>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {challenge.functionalReqs.map((r, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <span style={{
+                            width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1,
+                            background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.2)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 8, color: 'var(--accent)',
+                          }}>✓</span>
+                          <span style={{ fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.6 }}>{r}</span>
+                        </div>
+                      ))}
+                    </div>
                   </Section>
+
                   <Section title="Non-Functional Requirements">
-                    <ul style={{ margin: 0, padding: '0 0 0 14px', fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.7 }}>
-                      {challenge.nonFunctionalReqs.map((r, i) => <li key={i}>{r}</li>)}
-                    </ul>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {challenge.nonFunctionalReqs.map((r, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <span style={{
+                            width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1,
+                            background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.2)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 9, color: '#EAB308',
+                          }}>⚡</span>
+                          <span style={{ fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.6 }}>{r}</span>
+                        </div>
+                      ))}
+                    </div>
                   </Section>
+
                   <Section title="Scale">
-                    <div style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div><span style={{ color: 'var(--text-muted)' }}>Users: </span>{challenge.scale.users}</div>
-                      <div><span style={{ color: 'var(--text-muted)' }}>Throughput: </span>{challenge.scale.rps}</div>
-                      <div><span style={{ color: 'var(--text-muted)' }}>Storage: </span>{challenge.scale.storage}</div>
+                    <div style={{
+                      background: 'var(--card-bg)', borderRadius: 8, padding: '12px 14px',
+                      border: '1px solid var(--border-dim)',
+                      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px',
+                    }}>
+                      {[
+                        ['Users', challenge.scale.users],
+                        ['Throughput', challenge.scale.rps],
+                        ['Storage', challenge.scale.storage],
+                      ].map(([k, v]) => (
+                        <div key={k}>
+                          <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>{k}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace" }}>{v}</div>
+                        </div>
+                      ))}
                     </div>
                   </Section>
                 </div>
               )}
 
+              {/* ── Hints ── */}
               {activeTab === 'hints' && (
                 <div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontFamily: "'IBM Plex Mono', monospace" }}>
-                    Each hint used costs 5 points from your final score.
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 10px', borderRadius: 8, marginBottom: 16,
+                    background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)',
+                  }}>
+                    <span style={{ fontSize: 13 }}>⚠️</span>
+                    <span style={{ fontSize: 11.5, color: '#EAB308', fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.4 }}>
+                      Each hint deducts 5 pts from final score
+                    </span>
                   </div>
-                  {challenge.hints.map((hint, i) => (
-                    <div key={i} style={{
-                      background: 'var(--card-bg)', border: `1px solid ${hintsUsed.includes(i) ? 'rgba(124,58,237,0.3)' : 'var(--border)'}`,
-                      borderRadius: 8, padding: '12px', marginBottom: 8,
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
-                        Hint {i + 1} {hintsUsed.includes(i) ? '' : '(hidden)'}
-                      </div>
-                      {hintsUsed.includes(i) ? (
-                        <div style={{ fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.6 }}>{hint}</div>
-                      ) : (
-                        <button onClick={() => { useHint(i); setShowHints(true); }} style={{
-                          padding: '6px 14px', borderRadius: 6, border: 'none',
-                          background: 'rgba(124,58,237,0.1)', color: '#A78BFA',
-                          cursor: 'pointer', fontSize: 12, fontWeight: 600,
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {challenge.hints.map((hint, i) => {
+                      const isRevealed = hintsUsed.includes(i);
+                      return (
+                        <div key={i} style={{
+                          background: isRevealed ? 'var(--card-bg)' : 'var(--card-bg)',
+                          border: `1px solid ${isRevealed ? 'rgba(124,58,237,0.25)' : 'var(--border)'}`,
+                          borderRadius: 10, overflow: 'hidden',
+                          transition: 'border-color 0.2s',
                         }}>
-                          Reveal Hint (−5 pts)
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                          <div style={{
+                            padding: '10px 12px',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            borderBottom: isRevealed ? '1px solid rgba(124,58,237,0.12)' : 'none',
+                          }}>
+                            <div style={{
+                              width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                              background: isRevealed ? 'rgba(124,58,237,0.15)' : 'var(--bg)',
+                              border: `1px solid ${isRevealed ? 'rgba(124,58,237,0.3)' : 'var(--border)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 9, fontFamily: "'IBM Plex Mono', monospace",
+                              color: isRevealed ? '#A78BFA' : 'var(--text-muted)',
+                              fontWeight: 700,
+                            }}>
+                              {i + 1}
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: isRevealed ? 'var(--text)' : 'var(--text-dim)', fontFamily: "'DM Sans', sans-serif", flex: 1 }}>
+                              Hint {i + 1}
+                            </span>
+                            {!isRevealed && (
+                              <button
+                                onClick={() => { useHint(i); setShowHints(true); }}
+                                style={{
+                                  padding: '4px 10px', borderRadius: 6, border: 'none',
+                                  background: 'rgba(124,58,237,0.1)', color: '#A78BFA',
+                                  cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                                  fontFamily: "'IBM Plex Mono', monospace",
+                                  whiteSpace: 'nowrap',
+                                  transition: 'all 0.12s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.2)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.1)'; }}
+                              >
+                                Reveal −5pts
+                              </button>
+                            )}
+                            {isRevealed && (
+                              <span style={{ fontSize: 10, color: '#22C55E', fontFamily: "'IBM Plex Mono', monospace" }}>revealed</span>
+                            )}
+                          </div>
+                          {isRevealed && (
+                            <div style={{ padding: '10px 12px', fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.65 }}>
+                              {hint}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {finished && (
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', margin: '16px 0 8px', fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <div style={{ marginTop: 24 }}>
+                      <div style={{
+                        fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                        fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase',
+                        letterSpacing: '0.1em', marginBottom: 10,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                      }}>
+                        <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
                         Follow-up Questions
+                        <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
                       </div>
                       {challenge.followUpQuestions.map((q, i) => (
                         <div key={i} style={{
                           background: 'var(--card-bg)', border: '1px solid var(--border)',
-                          borderRadius: 7, padding: '10px 12px', marginBottom: 6,
-                          fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.55,
+                          borderRadius: 8, padding: '10px 12px', marginBottom: 6,
+                          fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.6,
+                          display: 'flex', gap: 8,
                         }}>
-                          {i + 1}. {q}
+                          <span style={{ color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, flexShrink: 0, marginTop: 1 }}>Q{i + 1}</span>
+                          {q}
                         </div>
                       ))}
                     </div>
@@ -321,38 +588,66 @@ export function InterviewSession() {
                 </div>
               )}
 
+              {/* ── Chat ── */}
               {activeTab === 'chat' && (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 300 }}>
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', minHeight: 300 }}>
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 12 }}>
                     {chatMsgs.length === 0 && (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", padding: '8px 0' }}>
-                        Ask the AI about your design. Be specific — "Why would I use Redis here over Memcached?"
+                      <div style={{
+                        padding: '20px 16px', borderRadius: 10, textAlign: 'center',
+                        background: 'var(--card-bg)', border: '1px solid var(--border)',
+                      }}>
+                        <div style={{ fontSize: 22, marginBottom: 8 }}>🤖</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>
+                          Ask me anything about your design.
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
+                          "Why Redis over Memcached?"
+                        </div>
                       </div>
                     )}
                     {chatMsgs.map((m, i) => (
                       <div key={i} style={{
                         alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                        maxWidth: '90%',
-                        background: m.role === 'user' ? 'var(--accent)' : 'var(--card-bg)',
-                        border: m.role === 'ai' ? '1px solid var(--border)' : 'none',
-                        borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '4px 12px 12px 12px',
-                        padding: '8px 11px',
-                        fontSize: 12.5, color: m.role === 'user' ? 'white' : 'var(--text-dim)',
-                        lineHeight: 1.55,
+                        maxWidth: '88%',
                       }}>
-                        {m.text}
+                        {m.role === 'ai' && (
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", marginBottom: 3, paddingLeft: 2 }}>AI</div>
+                        )}
+                        <div style={{
+                          background: m.role === 'user' ? 'var(--accent)' : 'var(--card-bg)',
+                          border: m.role === 'ai' ? '1px solid var(--border)' : 'none',
+                          borderRadius: m.role === 'user' ? '12px 12px 3px 12px' : '3px 12px 12px 12px',
+                          padding: '9px 12px',
+                          fontSize: 12.5,
+                          color: m.role === 'user' ? 'white' : 'var(--text-dim)',
+                          lineHeight: 1.6,
+                          boxShadow: m.role === 'user' ? '0 2px 8px rgba(124,58,237,0.25)' : 'none',
+                        }}>
+                          {m.text}
+                        </div>
                       </div>
                     ))}
                     {chatLoading && (
-                      <div style={{
-                        alignSelf: 'flex-start', background: 'var(--card-bg)', border: '1px solid var(--border)',
-                        borderRadius: '4px 12px 12px 12px', padding: '8px 12px', color: 'var(--text-muted)', fontSize: 12,
-                      }}>
-                        Thinking…
+                      <div style={{ alignSelf: 'flex-start', maxWidth: '88%' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", marginBottom: 3, paddingLeft: 2 }}>AI</div>
+                        <div style={{
+                          background: 'var(--card-bg)', border: '1px solid var(--border)',
+                          borderRadius: '3px 12px 12px 12px', padding: '9px 14px',
+                          color: 'var(--text-muted)', fontSize: 12,
+                          display: 'flex', gap: 4, alignItems: 'center',
+                        }}>
+                          <span style={{ animation: 'pulse 1s ease-in-out infinite' }}>●</span>
+                          <span style={{ animation: 'pulse 1s ease-in-out 0.2s infinite' }}>●</span>
+                          <span style={{ animation: 'pulse 1s ease-in-out 0.4s infinite' }}>●</span>
+                        </div>
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 8 }}>
+                  <div style={{
+                    display: 'flex', gap: 6, paddingTop: 10,
+                    borderTop: '1px solid var(--border)', marginTop: 'auto',
+                  }}>
                     <input
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
@@ -360,16 +655,26 @@ export function InterviewSession() {
                       placeholder="Ask about your design…"
                       style={{
                         flex: 1, background: 'var(--card-bg)', border: '1px solid var(--border)',
-                        borderRadius: 7, padding: '7px 10px', color: 'var(--text)',
-                        fontSize: 12, fontFamily: "'DM Sans', sans-serif", outline: 'none',
+                        borderRadius: 8, padding: '8px 11px', color: 'var(--text)',
+                        fontSize: 12.5, fontFamily: "'DM Sans', sans-serif", outline: 'none',
+                        transition: 'border-color 0.12s',
                       }}
+                      onFocus={e => { e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)'; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
                     />
-                    <button onClick={sendChat} disabled={!chatInput.trim() || chatLoading} style={{
-                      padding: '7px 10px', borderRadius: 7, border: 'none',
-                      background: chatInput.trim() && !chatLoading ? 'var(--accent)' : 'var(--card-bg)',
-                      color: chatInput.trim() && !chatLoading ? 'white' : 'var(--text-muted)',
-                      cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'not-allowed', fontSize: 14,
-                    }}>
+                    <button
+                      onClick={sendChat}
+                      disabled={!chatInput.trim() || chatLoading}
+                      style={{
+                        width: 36, height: 36, borderRadius: 8, border: 'none',
+                        background: chatInput.trim() && !chatLoading ? 'var(--accent)' : 'var(--card-bg)',
+                        color: chatInput.trim() && !chatLoading ? 'white' : 'var(--text-muted)',
+                        cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'not-allowed',
+                        fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, transition: 'all 0.12s',
+                        boxShadow: chatInput.trim() && !chatLoading ? '0 2px 8px rgba(124,58,237,0.3)' : 'none',
+                      }}
+                    >
                       ➤
                     </button>
                   </div>
@@ -379,8 +684,8 @@ export function InterviewSession() {
           </div>
         )}
 
-        {/* Canvas + Sidebar */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/* ── Canvas + Sidebar ── */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', minWidth: 0 }}>
           <Sidebar />
           <ReactFlowProvider>
             <Canvas
@@ -397,13 +702,77 @@ export function InterviewSession() {
         </div>
       </div>
 
-      {/* Score card */}
+      {/* ── Score card overlay ── */}
       {showScore && (
-        <ArchitectureScoreCard
-          nodes={topology.nodes}
-          edges={topology.edges}
-          onClose={() => setShowScore(false)}
-        />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <ArchitectureScoreCard
+            nodes={topology.nodes}
+            edges={topology.edges}
+            onClose={() => setShowScore(false)}
+          />
+          {(aiScoreLoading || aiScore) && (
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              maxHeight: '40%', overflowY: 'auto',
+              background: 'var(--sidebar-bg)', borderTop: '1px solid var(--border)',
+              padding: '20px 24px',
+            }}>
+              {aiScoreLoading && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>⚙</span>
+                  AI is scoring your architecture…
+                </div>
+              )}
+              {aiScore && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>AI Verdict</span>
+                    <span style={{
+                      fontSize: 13, fontWeight: 700, padding: '2px 10px', borderRadius: 20,
+                      background: aiScore.verdict === 'Strong' ? 'rgba(34,197,94,0.1)'
+                        : aiScore.verdict === 'Acceptable' ? 'rgba(245,158,11,0.1)'
+                        : 'rgba(239,68,68,0.1)',
+                      color: aiScore.verdict === 'Strong' ? '#22C55E'
+                        : aiScore.verdict === 'Acceptable' ? '#F59E0B'
+                        : '#EF4444',
+                      border: `1px solid ${aiScore.verdict === 'Strong' ? 'rgba(34,197,94,0.2)' : aiScore.verdict === 'Acceptable' ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                    }}>
+                      {aiScore.verdict}
+                      {aiScore.score != null && ` · ${aiScore.score}/100`}
+                    </span>
+                  </div>
+                  {aiScore.summary && (
+                    <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 14px', lineHeight: 1.65 }}>
+                      {aiScore.summary}
+                    </p>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    {aiScore.strengths && aiScore.strengths.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#22C55E', fontFamily: "'IBM Plex Mono', monospace", marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Strengths</div>
+                        {aiScore.strengths.map((s, i) => (
+                          <div key={i} style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 4, display: 'flex', gap: 6 }}>
+                            <span style={{ color: '#22C55E', flexShrink: 0 }}>✓</span>{s}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {aiScore.improvements && aiScore.improvements.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#F59E0B', fontFamily: "'IBM Plex Mono', monospace", marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Improve</div>
+                        {aiScore.improvements.map((s, i) => (
+                          <div key={i} style={{ fontSize: 12.5, color: 'var(--text-dim)', marginBottom: 4, display: 'flex', gap: 6 }}>
+                            <span style={{ color: '#F59E0B', flexShrink: 0 }}>→</span>{s}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
       {void showHints}
     </div>
@@ -412,12 +781,18 @@ export function InterviewSession() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div>
       <div style={{
-        fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-        color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", marginBottom: 7,
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
       }}>
-        {title}
+        <span style={{
+          fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase',
+          letterSpacing: '0.1em', color: 'var(--text-muted)',
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}>
+          {title}
+        </span>
+        <span style={{ flex: 1, height: 1, background: 'var(--border-dim)' }} />
       </div>
       {children}
     </div>

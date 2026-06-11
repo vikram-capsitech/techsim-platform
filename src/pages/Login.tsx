@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Zap, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function Login() {
@@ -39,16 +39,23 @@ export function Login() {
         {/* Logo */}
         <div style={styles.logoRow}>
           <div style={styles.logoIcon}>
-            <Zap size={18} color="white" strokeWidth={2.5} />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="6" height="6" rx="1.5" />
+              <rect x="16" y="2" width="6" height="6" rx="1.5" />
+              <rect x="9" y="16" width="6" height="6" rx="1.5" />
+              <path d="M5 8v4a2 2 0 0 0 2 2h2" />
+              <path d="M19 8v4a2 2 0 0 1-2 2h-2" />
+              <path d="M12 16v-2" />
+            </svg>
           </div>
           <div>
-            <div style={styles.logoName}>TechSim</div>
-            <div style={styles.logoSub}>Infrastructure Platform</div>
+            <div style={styles.logoName}>SystemCraft</div>
+            <div style={styles.logoSub}>System Design University</div>
           </div>
         </div>
 
         <h1 style={styles.heading}>Sign in to your workspace</h1>
-        <p style={styles.sub}>Design, simulate and secure your infrastructure.</p>
+        <p style={styles.sub}>Design, simulate and secure your distributed systems.</p>
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <Field label="Email" type="email" value={email} onChange={setEmail}

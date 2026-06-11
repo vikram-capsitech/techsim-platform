@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import type { TechNodeData } from './TechNode';
+import apiClient from '../api/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface GateIssue {
@@ -167,7 +168,54 @@ function Badge({ count, color, label }: { count: number; color: string; label: s
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export function ValidationGate({ nodes, edges, onProceed, onCancel }: ValidationGateProps) {
-  const issues   = useMemo(() => runGateValidation(nodes, edges), [nodes, edges]);
+  const localIssues = useMemo(() => runGateValidation(nodes, edges), [nodes, edges]);
+  const [aiIssues, setAiIssues] = useState<GateIssue[]>([]);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const localCritical = useMemo(() => localIssues.filter(i => i.severity === 'critical'), [localIssues]);
+
+  useEffect(() => {
+    if (localCritical.length === 0 && nodes.length > 0) {
+      let isMounted = true;
+      setLoadingAi(true);
+      setAiError(null);
+
+      apiClient.post<{ aiIssues: any[] }>('/api/ai/validate', { nodes, edges })
+        .then(res => {
+          if (!isMounted) return;
+          const mapped = (res.data.aiIssues || []).map((issue: any, index: number) => ({
+            id: `ai_issue_${index}`,
+            severity: (issue.severity === 'critical' || issue.severity === 'warning' || issue.severity === 'info')
+              ? issue.severity
+              : 'info',
+            title: `[AI] ${issue.title}`,
+            description: `${issue.description} Recommendation: ${issue.recommendation}`,
+            affectedNodes: []
+          }));
+          setAiIssues(mapped);
+          setLoadingAi(false);
+        })
+        .catch(err => {
+          if (!isMounted) return;
+          console.error('AI validation failed:', err);
+          setAiError('AI validation service is currently unavailable.');
+          setLoadingAi(false);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setAiIssues([]);
+      setLoadingAi(false);
+    }
+  }, [nodes, edges, localCritical.length]);
+
+  const issues = useMemo(() => {
+    return [...localIssues, ...aiIssues];
+  }, [localIssues, aiIssues]);
+
   const critical = useMemo(() => issues.filter(i => i.severity === 'critical'), [issues]);
   const warnings = useMemo(() => issues.filter(i => i.severity === 'warning'),  [issues]);
   const infos    = useMemo(() => issues.filter(i => i.severity === 'info'),     [issues]);
@@ -222,11 +270,38 @@ export function ValidationGate({ nodes, edges, onProceed, onCancel }: Validation
           </div>
 
           {/* All clear */}
-          {issues.length === 0 && (
+          {issues.length === 0 && !loadingAi && !aiError && (
             <div style={{ textAlign: 'center', padding: '2rem', color: '#10B981' }}>
               <div style={{ fontSize: 52, marginBottom: 12 }}>✅</div>
               <h3 style={{ color: 'var(--text)', margin: '0 0 6px', fontFamily: "'DM Sans', sans-serif" }}>Architecture looks great!</h3>
               <p style={{ color: 'var(--text-dim)', margin: 0, fontFamily: "'DM Sans', sans-serif", fontSize: 13 }}>No issues found. Ready to simulate.</p>
+            </div>
+          )}
+
+          {loadingAi && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '11px 14px', marginBottom: 8,
+              border: '1px solid var(--border)', borderRadius: 8,
+              background: 'rgba(255,255,255,0.02)'
+            }}>
+              <span style={{ fontSize: 14 }}>⏳</span>
+              <span style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: "'DM Sans', sans-serif" }}>
+                Running AI deep architecture review...
+              </span>
+            </div>
+          )}
+
+          {aiError && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '11px 14px', marginBottom: 8,
+              border: '1px solid #EF444433', borderRadius: 8,
+              background: '#EF444408', color: '#EF4444'
+            }}>
+              <span style={{ fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>
+                ⚠️ {aiError}
+              </span>
             </div>
           )}
 

@@ -11,6 +11,7 @@
     "seed": "ts-node server/seed.ts",
     "populate:content": "npx tsx server/populate-json.ts.bak",
     "seed:content": "npx tsx server/seed-content.ts",
+    "seed:registry": "ts-node server/seed-registry.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

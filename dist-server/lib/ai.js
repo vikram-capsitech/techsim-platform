@@ -9,14 +9,8 @@ const generative_ai_1 = require("@google/generative-ai");
 async function callAI(userPrompt, systemPrompt, maxTokens = 1000, customGroqKey, customGeminiKey) {
     const groqKey = customGroqKey || process.env.GROQ_API_KEY;
     const geminiKey = customGeminiKey || process.env.GEMINI_API_KEY;
-    console.log('AI Key Debug:', {
-        customGroqKey,
-        envGroqKey: process.env.GROQ_API_KEY,
-        groqKey,
-        customGeminiKey,
-        envGeminiKey: process.env.GEMINI_API_KEY,
-        geminiKey
-    });
+    const provider = groqKey ? 'Groq' : 'Gemini';
+    console.log(`[AI] Calling ${provider}, maxTokens: ${maxTokens}`);
     if (!groqKey && !geminiKey) {
         throw new Error('No Groq or Gemini API key configured on server or client');
     }

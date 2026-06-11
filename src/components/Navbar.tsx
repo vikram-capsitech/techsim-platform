@@ -5,20 +5,15 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeSwitcher } from './ThemeSwitcher';
 
 const TABS = [
-  { path: '/canvas',            label: 'System Design' },
-  { path: '/security',          label: 'Security' },
-  { path: '/k8s',               label: 'K8s' },
-  { path: '/db-schema',         label: 'DB Schema' },
-  { path: '/network',           label: 'Network' },
-  { path: '/my-architectures',  label: 'My Architectures' },
-  { path: '/discussion',        label: 'Discussion' },
-  { path: '/settings',          label: 'Settings' },
+  { path: '/canvas',           label: 'Design' },
+  { path: '/my-architectures', label: 'My Work' },
+  { path: '/settings',         label: 'Settings' },
 ];
 
 const LEARN_ITEMS = [
   { path: '/learn',      label: '📚 Learning Paths' },
-  { path: '/concepts',   label: '🧪 CS Concepts' },
-  { path: '/interview',  label: '🎯 Interview Mode' },
+  { path: '/concepts',   label: '🧪 Concepts' },
+  { path: '/interview',  label: '🎯 Interview Prep' },
 ];
 
 interface NavbarProps {
@@ -63,11 +58,16 @@ export function Navbar({ onSave, onSimulationStart, simulationRunning = false }:
       {/* Logo */}
       <button onClick={() => navigate('/')} style={styles.logoBtn}>
         <div style={styles.logoIcon}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="2" width="6" height="6" rx="1.5" />
+            <rect x="16" y="2" width="6" height="6" rx="1.5" />
+            <rect x="9" y="16" width="6" height="6" rx="1.5" />
+            <path d="M5 8v4a2 2 0 0 0 2 2h2" />
+            <path d="M19 8v4a2 2 0 0 1-2 2h-2" />
+            <path d="M12 16v-2" />
           </svg>
         </div>
-        <span style={styles.logoText}>TechSim</span>
+        <span style={styles.logoText}>SystemCraft</span>
       </button>
 
       {/* Tabs */}

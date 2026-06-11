@@ -229,8 +229,21 @@ router.post('/interview', async (req: AuthRequest, res: Response, next: NextFunc
 // Returns top 10 scores for a challenge
 router.get('/leaderboard/:challengeId', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const { challengeId } = req.params;
+    if (typeof challengeId !== 'string') {
+      return res.status(400).json({ error: 'Invalid challengeId' });
+    }
+    
+    const scenario = mongoose.Types.ObjectId.isValid(challengeId)
+      ? await Scenario.findById(challengeId)
+      : await Scenario.findOne({ $or: [{ 'metadata.id': challengeId }, { title: challengeId }] });
+
+    if (!scenario) {
+      return res.status(404).json({ error: 'Scenario/Challenge not found' });
+    }
+
     const topScores = await UserProgress.find({
-      scenarioId: req.params.challengeId
+      scenarioId: scenario._id
     })
     .sort({ score: -1 })
     .limit(10)

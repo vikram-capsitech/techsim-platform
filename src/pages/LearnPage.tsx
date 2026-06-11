@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import apiClient from '../api/client';
 
 // Maps LearnPage track IDs → theory JSON trackId + lesson ID prefix
 const TRACK_THEORY_MAP: Record<string, { theoryTrackId: string; lessonIdPrefix: string }> = {
@@ -160,6 +161,20 @@ const TRACKS: Track[] = [
 
 const STORAGE_KEY = 'techsim_learn_completed';
 
+// Reverse map: theory lesson ID (e.g. "l1_1") → track lesson ID (e.g. "sdf-1")
+// LessonPage saves progress using theory IDs from the URL; LearnPage checkboxes use track IDs.
+const THEORY_TO_TRACK_ID: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  TRACKS.forEach(track => {
+    const mapping = TRACK_THEORY_MAP[track.id];
+    if (!mapping) return;
+    track.lessons.forEach((lesson, idx) => {
+      map[`${mapping.lessonIdPrefix}${idx + 1}`] = lesson.id;
+    });
+  });
+  return map;
+})();
+
 const DIFFICULTY_COLORS: Record<string, string> = {
   Beginner:     '#22C55E',
   Intermediate: '#F59E0B',
@@ -175,17 +190,57 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+function loadLocalCompleted(): Set<string> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 export function LearnPage() {
-  const [completed, setCompleted] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
+  const [completed, setCompleted] = useState<Set<string>>(loadLocalCompleted);
   const [activeTrack, setActiveTrack] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+
+  // Load from API on mount, merge with localStorage
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const res = await apiClient.get('/api/progress/lessons');
+        setCompleted(prev => {
+          const merged = new Set(prev);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res.data.forEach((p: any) => {
+            if (p.completed && p.lessonId) {
+              merged.add(p.lessonId);
+              const trackId = THEORY_TO_TRACK_ID[p.lessonId];
+              if (trackId) merged.add(trackId);
+            }
+          });
+          // Also pick up completions written as lesson_complete_* keys
+          Object.keys(localStorage)
+            .filter(k => k.startsWith('lesson_complete_'))
+            .forEach(k => {
+              try {
+                const data = JSON.parse(localStorage.getItem(k) || '{}');
+                if (data.completed) {
+                  const theoryId = k.replace('lesson_complete_', '');
+                  merged.add(theoryId);
+                  const trackId = THEORY_TO_TRACK_ID[theoryId];
+                  if (trackId) merged.add(trackId);
+                }
+              } catch { /* ignore */ }
+            });
+          return merged;
+        });
+      } catch {
+        // Fall back to localStorage-only state already loaded as initial state
+      }
+    };
+    loadProgress();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...completed]));

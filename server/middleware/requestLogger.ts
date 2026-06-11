@@ -1,7 +1,7 @@
-import morgan from 'morgan';
+import morgan from 'morgan'
 
 // Development: colored, detailed
-export const devLogger = morgan('dev');
+export const devLogger = morgan('dev')
 
 // Production: JSON structured logs (no sensitive data)
 export const prodLogger = morgan((tokens, req: any, res) => {
@@ -12,5 +12,5 @@ export const prodLogger = morgan((tokens, req: any, res) => {
     responseTime: tokens['response-time'](req, res) + 'ms',
     userId: req.user?._id || 'anonymous',
     // Never log: body, headers, tokens, keys
-  });
-});
+  })
+})

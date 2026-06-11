@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import apiClient from '../api/client';
 import {
   getLessonTheory,
   getLessonQuiz,
@@ -307,6 +308,7 @@ export function LessonPage() {
   const navigate = useNavigate();
   const [quizStarted, setQuizStarted] = useState(false);
   const [lessonDone, setLessonDone] = useState(false);
+  const startTimeRef = useRef(Date.now());
 
   const theory = getLessonTheory(trackId, lessonId);
   const track = getTheoryTrack(trackId);
@@ -314,7 +316,31 @@ export function LessonPage() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    startTimeRef.current = Date.now();
   }, [lessonId]);
+
+  const saveProgressToBackend = async (finalScore: number) => {
+    const passed = finalScore >= Math.ceil(questions.length * 0.6);
+    if (!passed) return;
+
+    try {
+      await apiClient.post('/api/progress/lesson', {
+        lessonId,
+        trackId,
+        score: Math.round((finalScore / questions.length) * 100),
+        timeSpent: Math.round((Date.now() - startTimeRef.current) / 1000),
+        completed: true,
+      });
+      console.log('[Progress] Lesson saved to backend');
+    } catch (err) {
+      console.error('[Progress] Failed to save lesson:', err);
+    }
+
+    localStorage.setItem(
+      `lesson_complete_${lessonId}`,
+      JSON.stringify({ completed: true, score: finalScore, savedAt: Date.now() })
+    );
+  };
 
   const handleQuizComplete = (score: number) => {
     if (score >= Math.ceil(questions.length * 0.6)) {
@@ -327,6 +353,7 @@ export function LessonPage() {
         }
       } catch { /* ignore */ }
     }
+    saveProgressToBackend(score);
   };
 
   if (!theory) {
@@ -366,7 +393,7 @@ export function LessonPage() {
 
   return (
     <div style={{
-      flex: 1,
+      height: '100vh',
       display: 'flex',
       background: 'var(--bg-primary)',
       fontFamily: "'DM Sans', sans-serif",

@@ -112,7 +112,7 @@ function CanvasPage() {
   const [scenarioGenerating, setScenarioGenerating] = useState(false);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
   const canvasRef = useRef<CanvasHandle | null>(null);
-  const simStartRef = useRef<number | null>(null);
+  const simStartRef = useRef<number>(0);
   const peakRPSRef = useRef(0);
   const { metrics, isRunning, start, stop, injectChaos, nodeStates, edgeStates, setSpeed: engineSetSpeed, setTraffic: engineSetTraffic, getChaosLog, resetChaosLog } = useSimulation(topology.nodes, topology.edges, resolvedTheme);
 
@@ -181,6 +181,24 @@ function CanvasPage() {
       ...fresh.map(issue => ({ id: `toast_${Date.now()}_${Math.random()}`, issue })),
     ]);
   }, []);
+  const showScoreCard = useCallback(() => {
+    if (topology.nodes.length < 2) {
+      setToasts(prev => [
+        ...prev,
+        {
+          id: `toast_${Date.now()}_${Math.random()}`,
+          issue: {
+            id: 'score-needs-components',
+            severity: 'info',
+            rule: 'Architecture Score',
+            message: 'Add more components before scoring',
+          },
+        },
+      ]);
+      return;
+    }
+    setShowScore(true);
+  }, [topology.nodes.length]);
   const dismissToast = useCallback((id: string) => setToasts(p => p.filter(t => t.id !== id)), []);
   const handleHighlight = useCallback((issue: ValidationIssue) => canvasRef.current?.highlightIssue(issue), []);
   const handleValidate = useCallback(() => canvasRef.current?.runValidation(), []);
@@ -278,7 +296,8 @@ function CanvasPage() {
 
   const toggleSimulation = useCallback(() => {
     if (isRunning) {
-      const duration = simStartRef.current ? (Date.now() - simStartRef.current) / 1000 : 0;
+      const durationMs = simStartRef.current ? Date.now() - simStartRef.current : 0;
+      const duration = durationMs / 1000;
 
       // Only show report if simulation ran for at least 5 seconds
       if (duration >= 5) {
@@ -313,6 +332,9 @@ function CanvasPage() {
       }
 
       stop();
+      if (durationMs > 10000) {
+        setTimeout(showScoreCard, 500);
+      }
     } else {
       const autoValidate = localStorage.getItem('auto_validate') !== 'false';
       if (autoValidate) {
@@ -324,7 +346,7 @@ function CanvasPage() {
         start();
       }
     }
-  }, [isRunning, start, stop, topology.nodes, nodeStates, metrics.p99, metrics.globalRPS, getChaosLog, resetChaosLog]);
+  }, [isRunning, start, stop, topology.nodes, nodeStates, metrics.p99, metrics.globalRPS, getChaosLog, resetChaosLog, showScoreCard]);
 
   const handleSpeedChange = useCallback((v: number) => {
     setSpeed(v);
@@ -389,9 +411,9 @@ function CanvasPage() {
             edgeStates={edgeStates}
             canvasRef={canvasRef}
           />
+          <PropertiesPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
         </ReactFlowProvider>
         {showIssues && <IssuesPanel issues={issues} onHighlight={handleHighlight} onValidate={handleValidate} onClose={() => setShowIssues(false)} />}
-        <PropertiesPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
         <BottomBar
           isRunning={isRunning}
           onToggle={toggleSimulation}
@@ -410,7 +432,7 @@ function CanvasPage() {
           onTrafficChange={handleTrafficChange}
           activeNodeCount={activeNodeCount}
           totalNodeCount={Math.max(nodeCount, 1)}
-          onScoreClick={() => setShowScore(true)}
+          onScoreClick={showScoreCard}
         />
       </div>
       <ValidationToastContainer toasts={toasts} onDismiss={dismissToast} />

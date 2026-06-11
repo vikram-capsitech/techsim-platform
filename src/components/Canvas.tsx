@@ -19,8 +19,10 @@ import {
   type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { TechNode, type TechNodeData } from './TechNode';
+import { TechNode, type TechNodeData, type SelectedTool } from './TechNode';
 import { GlowEdge, type EdgeRoutingType } from './GlowEdge';
+import { ToolSelectionModal, type SelectedToolData } from './ToolSelectionModal';
+import apiClient from '../api/client';
 import { AIGeneratorPanel } from './AIGeneratorPanel';
 import { NodeSettingsPanel } from './NodeSettingsPanel';
 import { KnowledgePanel } from './KnowledgePanel';
@@ -181,6 +183,18 @@ export function Canvas({
   const [knowledgeTarget,    setKnowledgeTarget]    = useState<{ nodeTypeId: string; label: string } | null>(null);
   const [contextMenu,        setContextMenu]        = useState<{ x: number; y: number; selectedCount: number } | null>(null);
 
+  // Tool selection modal — set on drag-drop before node is placed
+  const [toolModalConfig, setToolModalConfig] = useState<{
+    nodeType: string;
+    nodeName: string;
+    icon: string;
+    category: Category;
+    position: { x: number; y: number };
+  } | null>(null);
+
+  // Transient connection error shown for 5 s then auto-dismissed
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
   // Listen for gear-icon open-settings events dispatched by TechNode
   useEffect(() => {
     const handler = (e: Event) => {
@@ -270,13 +284,33 @@ export function Canvas({
     [onIssuesChange, onNewIssues, setEdges],
   );
 
-  // ── Connect ──────────────────────────────────────────────────────────────
+  // ── Connect (async — registry validates before wiring) ───────────────────
   const onConnect: OnConnect = useCallback(
-    (connection: Connection) => {
+    async (connection: Connection) => {
       const sourceNode = nodes.find((n) => n.id === connection.source);
       const targetNode = nodes.find((n) => n.id === connection.target);
-
       if (!sourceNode || !targetNode) return;
+
+      const sourceType = (sourceNode.data as TechNodeData).nodeTypeId;
+      const targetType = (targetNode.data as TechNodeData).nodeTypeId;
+
+      // Registry connection validation (graceful degradation on error)
+      if (sourceType && targetType) {
+        try {
+          const res = await apiClient.get(`/api/registry/connections/${sourceType}`);
+          const blocked: string[] = res.data?.validConnections?.cannotConnectTo ?? [];
+          const reasons: Record<string, string> = res.data?.validConnections?.cannotConnectToReason ?? {};
+          if (blocked.includes(targetType)) {
+            const reason = reasons[targetType]
+              ?? `${(sourceNode.data as TechNodeData).label} cannot connect directly to ${(targetNode.data as TechNodeData).label}`;
+            setConnectionError(reason);
+            setTimeout(() => setConnectionError(null), 5000);
+            return;
+          }
+        } catch {
+          // Network/registry error — allow connection (don't block user)
+        }
+      }
 
       const protocol = inferProtocol(
         sourceNode.data as TechNodeData,
@@ -315,7 +349,7 @@ export function Canvas({
     (e: React.DragEvent) => {
       e.preventDefault();
 
-      // Chaos scenario dropped onto a node
+      // Chaos scenario dropped onto a node — pass-through unchanged
       const chaosId = e.dataTransfer.getData('application/chaos-type');
       if (chaosId && onChaosOnNode) {
         const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
@@ -335,34 +369,71 @@ export function Canvas({
       const rawLabel = e.dataTransfer.getData('application/reactflow-label');
       if (!type) return;
 
-      // Generate clean label: Router-1, LB-2, Postgres-3, etc.
-      const prefix = TYPE_PREFIXES[type] ?? rawLabel ?? type;
-      const count  = (nodeTypeCountsRef.current.get(type) ?? 0) + 1;
-      nodeTypeCountsRef.current.set(type, count);
-      const nodeId     = `${prefix.toLowerCase().replace(/[^a-z0-9-]/g, '')}-${count}`;
-      const cleanLabel = `${prefix}-${count}`;
-
       const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const newNode: Node = {
-        id: nodeId,
-        type: 'techNode',
-        position: {
-          x: Math.round(pos.x / 16) * 16 - 105,
-          y: Math.round(pos.y / 16) * 16 - 40,
-        },
-        style: { width: 210 },
-        data: { label: cleanLabel, icon, category, nodeTypeId: type } satisfies TechNodeData,
+      const position = {
+        x: Math.round(pos.x / 16) * 16 - 105,
+        y: Math.round(pos.y / 16) * 16 - 40,
       };
-      setNodes((nds) => {
-        const next = [...nds, newNode];
-        onCountChange(next.length);
-        setTimeout(() => runValidate(next, edges), 0);
-        return next;
-      });
-      if (TOOL_REC_TRIGGERS.has(type)) setToolRecNodeTypeId(type);
+
+      // Derive a human-readable name for the modal title
+      const nodeName = rawLabel || type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+      // Show the tool selection modal; node is placed only after user confirms or skips
+      setToolModalConfig({ nodeType: type, nodeName, icon, category, position });
     },
-    [screenToFlowPosition, setNodes, edges, onCountChange, runValidate],
+    [screenToFlowPosition, nodes, onChaosOnNode],
   );
+
+  // ── Helpers shared by handleToolSelected + handleToolSkip ────────────────
+  const _placeNode = useCallback((
+    nodeType: string,
+    icon: string,
+    category: Category,
+    position: { x: number; y: number },
+    selectedTool?: SelectedTool,
+  ) => {
+    const prefix = TYPE_PREFIXES[nodeType] ?? nodeType;
+    const count  = (nodeTypeCountsRef.current.get(nodeType) ?? 0) + 1;
+    nodeTypeCountsRef.current.set(nodeType, count);
+    const nodeId     = `${prefix.toLowerCase().replace(/[^a-z0-9-]/g, '')}-${count}`;
+    const cleanLabel = `${prefix}-${count}`;
+
+    const newNode: Node = {
+      id: nodeId,
+      type: 'techNode',
+      position,
+      style: { width: 210 },
+      data: { label: cleanLabel, icon, category, nodeTypeId: nodeType, selectedTool } satisfies TechNodeData,
+    };
+    setNodes((nds) => {
+      const next = [...nds, newNode];
+      onCountChange(next.length);
+      setTimeout(() => runValidate(next, edges), 0);
+      return next;
+    });
+  }, [setNodes, edges, onCountChange, runValidate]);
+
+  const handleToolSelected = useCallback((toolData: SelectedToolData) => {
+    if (!toolModalConfig) return;
+    const selectedTool: SelectedTool = {
+      id: toolData.id,
+      name: toolData.name,
+      canvasLabel: toolData.canvasLabel,
+      openSource: toolData.openSource,
+      cloudManaged: toolData.cloudManaged,
+      provider: toolData.provider,
+    };
+    _placeNode(toolModalConfig.nodeType, toolModalConfig.icon, toolModalConfig.category, toolModalConfig.position, selectedTool);
+    setToolModalConfig(null);
+  }, [toolModalConfig, _placeNode]);
+
+  const handleToolSkip = useCallback(() => {
+    if (!toolModalConfig) return;
+    _placeNode(toolModalConfig.nodeType, toolModalConfig.icon, toolModalConfig.category, toolModalConfig.position);
+    // Show tool recommendation panel for nodes that have one
+    if (TOOL_REC_TRIGGERS.has(toolModalConfig.nodeType)) setToolRecNodeTypeId(toolModalConfig.nodeType);
+    setToolModalConfig(null);
+  }, [toolModalConfig, _placeNode]);
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_e, node) => {
@@ -623,6 +694,41 @@ export function Canvas({
           nodeTypeId={toolRecNodeTypeId}
           onClose={() => setToolRecNodeTypeId(null)}
         />
+      )}
+
+      {/* Tool selection modal — shown on every node drag before placement */}
+      {toolModalConfig && (
+        <ToolSelectionModal
+          nodeType={toolModalConfig.nodeType}
+          nodeName={toolModalConfig.nodeName}
+          onSelect={handleToolSelected}
+          onSkip={handleToolSkip}
+          onCancel={() => setToolModalConfig(null)}
+        />
+      )}
+
+      {/* Connection validation error banner */}
+      {connectionError && (
+        <div
+          style={{
+            position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 50,
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'rgba(239,68,68,0.12)',
+            border: '1px solid rgba(239,68,68,0.4)',
+            borderRadius: 10, padding: '10px 16px',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 12.5,
+            color: '#FCA5A5',
+            maxWidth: 480,
+            pointerEvents: 'none',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⚠</span>
+          <span style={{ flex: 1 }}><strong style={{ color: '#EF4444' }}>Invalid Connection</strong> — {connectionError}</span>
+        </div>
       )}
 
       {/* Canvas right-click context menu */}

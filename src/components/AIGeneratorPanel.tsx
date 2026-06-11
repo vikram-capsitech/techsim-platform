@@ -1,20 +1,36 @@
 import { useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { aiApi } from '../api/client';
+import { NODE_TEMPLATES } from '../data/nodes';
 
-// Maps AI nodeType → canvas nodeTypeId + lucide icon name
-const NODE_TYPE_MAP: Record<string, { nodeTypeId: string; icon: string }> = {
-  loadBalancer: { nodeTypeId: 'load-balancer', icon: 'git-branch' },
-  apiGateway:   { nodeTypeId: 'api-gateway',   icon: 'arrow-right-left' },
-  database:     { nodeTypeId: 'postgres',       icon: 'database' },
-  cache:        { nodeTypeId: 'redis',          icon: 'layers' },
-  queue:        { nodeTypeId: 'kafka',          icon: 'activity' },
-  microservice: { nodeTypeId: 'docker',         icon: 'box' },
-  cdn:          { nodeTypeId: 'cdn',            icon: 'globe' },
-  waf:          { nodeTypeId: 'firewall',       icon: 'shield' },
-  router:       { nodeTypeId: 'router',         icon: 'router' },
-  firewall:     { nodeTypeId: 'firewall',       icon: 'shield' },
-  dns:          { nodeTypeId: 'dns',            icon: 'compass' },
+// Maps every AI-returned type string → valid canvas nodeTypeId
+const NODE_ID_MAP: Record<string, string> = {
+  // underscore_case (AI common output)
+  load_balancer: 'load-balancer', api_gateway: 'api-gateway',
+  auth_service: 'auth-service', rate_limiter: 'rate-limiter',
+  reverse_proxy: 'reverse-proxy', api_server: 'api-server',
+  serverless_function: 'lambda', job_processor: 'job-processor',
+  message_queue: 'sqs', service_mesh: 'service-mesh',
+  client_browser: 'client',
+  // camelCase
+  loadBalancer: 'load-balancer', apiGateway: 'api-gateway',
+  authService: 'auth-service', rateLimiter: 'rate-limiter',
+  reverseProxy: 'reverse-proxy', apiServer: 'api-server',
+  // direct pass-through (already valid IDs)
+  microservice: 'microservice', docker: 'microservice',
+  kubernetes: 'kubernetes', cdn: 'cdn', dns: 'dns',
+  waf: 'waf', firewall: 'firewall', router: 'router',
+  client: 'client', worker: 'worker', lambda: 'lambda',
+  postgres: 'postgres', postgresql: 'postgres',
+  mysql: 'mysql', mongodb: 'mongodb', redis: 'redis',
+  kafka: 'kafka', rabbitmq: 'rabbitmq',
+  elasticsearch: 'elastic', elastic: 'elastic',
+  s3: 's3', sqs: 'sqs', pubsub: 'pubsub',
+  prometheus: 'prometheus', grafana: 'grafana',
+  jaeger: 'jaeger',
+  // abstract/generic types
+  database: 'postgres', cache: 'redis', queue: 'kafka',
+  serverless: 'lambda', storage: 's3',
 };
 
 const PROTOCOL_MAP: Record<string, string> = {
@@ -35,17 +51,23 @@ const EDGE_COLORS: Record<string, string> = {
 export function transformDiagram(raw: any) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nodes = raw.nodes.map((n: any) => {
-    const mapping = NODE_TYPE_MAP[n.data?.nodeType] ?? { nodeTypeId: 'docker', icon: 'box' };
+    // Accept nodeType, nodeTypeId, or type from AI response — try all three
+    const rawType: string = n.data?.nodeType || n.data?.nodeTypeId || n.type || 'microservice';
+    const nodeTypeId =
+      NODE_ID_MAP[rawType] ??
+      NODE_ID_MAP[rawType.toLowerCase()] ??
+      'microservice';
+    const template = NODE_TEMPLATES.find(t => t.id === nodeTypeId);
     return {
       id:       n.id,
       type:     'techNode',
       position: n.position ?? { x: 0, y: 0 },
       style:    { width: 210 },
       data: {
-        label:      n.data?.label ?? n.id,
-        icon:       mapping.icon,
-        category:   n.data?.category ?? 'compute',
-        nodeTypeId: mapping.nodeTypeId,
+        label:      n.data?.label ?? n.data?.name ?? template?.label ?? nodeTypeId,
+        icon:       template?.icon ?? 'box',
+        category:   template?.category ?? n.data?.category ?? 'compute',
+        nodeTypeId,
         status:     'healthy' as const,
       },
     };

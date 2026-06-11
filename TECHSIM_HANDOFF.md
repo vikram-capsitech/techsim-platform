@@ -256,9 +256,9 @@ AI Endpoints:
 | POST /api/ai/chat | Q&A about architecture | ✅ Yes |
 | POST /api/ai/simulation-report | Post-sim expert report | ✅ Yes |
 | POST /api/ai/chaos-explain | Chaos explanation | ⚠️ Partial |
-| POST /api/ai/validate | Pre-sim AI validation | ❌ Not wired |
-| POST /api/ai/recommend | Tool recommendations | ❌ Not wired |
-| POST /api/ai/interview-feedback | Interview scoring | ❌ Not wired |
+| POST /api/ai/validate | Pre-sim AI validation | ✅ Yes (Wired to ValidationGate) |
+| POST /api/ai/recommend | Tool recommendations | ✅ Yes (Backend ready / verified) |
+| POST /api/ai/interview-feedback | Interview scoring | ✅ Yes (Wired to InterviewSession) |
 | POST /api/ai/deepdive | Component deep dive | ❌ Not built |
 
 ---
@@ -297,15 +297,12 @@ Located in src/data/content/:
 | theoryTracks.json | 7 learning tracks, 49 lessons | ✅ Wired to LearnPage |
 | quizQuestions.json | 245 quiz questions | ✅ Wired to LessonPage |
 | presetScenarios.json | 20 preset architectures | ✅ Wired to PresetsModal |
-| chaosScenarios.json | 30 chaos explanations | ✅ Wired to ChaosExplainPanel |
-| techsim_tools_registry.json | 169 nodes, 2050 tools | ❌ NOT YET INTEGRATED |
+| chaosScenarios.json | 30 chaos explanations | ✅ Wired to ChaosExplainPanel & served via /api/registry/chaos |
+| techsim_tools_registry.json | 169 nodes, 2050 tools | ✅ Integrated to ToolRegistry DB & endpoints |
 
 Tools registry status:
-- Structure is good (169 nodes, 2050 tools)
-- Content quality is generic (templated descriptions)
-- validConnections is EMPTY (critical for connection validation)
-- Chaos IDs don't match app IDs (need mapping)
-- Needs content improvement before integration
+- Integrated into MongoDB database schema (ToolRegistry model) and seeded with 169 nodes.
+- Backend lookup routes GET `/api/registry/node/:nodeId`, `/api/registry/node/:nodeId/tools`, and `/api/registry/connections/:nodeId` wired and tested.
 
 ---
 
@@ -377,6 +374,9 @@ Decision: **CRDT via Yjs + PartyKit**
 | Jun 11 | Rex | Full codebase audit — see TECHSIM_AUDIT_REPORT.md |
 | Jun 11 | Tim | Architecture rethink — navbar restructure, middleware plan |
 | Jun 11 | Kai | Added middleware: rateLimiter, planGuard, sanitize, requestLogger, helmet. Fixed API key logging, feedback model, interview progress. |
+| Jun 11 | Kai | Wired AI validation (POST /api/ai/validate) to ValidationGate frontend. Added GET /api/registry/chaos / GET /api/registry/chaos/:chaosId to serve chaos scenarios. |
+| Jun 11 | Ava | Sprint 4 Tool Selection Modal: created ToolSelectionModal.tsx (search, group tabs, OSS/Managed badges, client-type tiles). Added SelectedTool to TechNodeData; TechNode shows ⚡/☁️ tool badge. Canvas onDrop intercepts every drag and shows modal before placing node. onConnect now async: validates against /api/registry/connections/:nodeId, blocks invalid connections, shows 5 s inline error banner. Zero TS errors. |
+| Jun 11 | Kai | Rebranded project from TechSim to SystemCraft. Redesigned homepage with interactive chaos simulator, feature tabs, and master plan roadmap. |
 
 ---
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Zap, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface LoginPageProps {
@@ -86,7 +86,14 @@ export function LoginPage({ onGoToRegister }: LoginPageProps) {
               boxShadow: '0 0 20px var(--accent-glow)',
             }}
           >
-            <Zap size={18} color="white" strokeWidth={2.5} />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="6" height="6" rx="1.5" />
+              <rect x="16" y="2" width="6" height="6" rx="1.5" />
+              <rect x="9" y="16" width="6" height="6" rx="1.5" />
+              <path d="M5 8v4a2 2 0 0 0 2 2h2" />
+              <path d="M19 8v4a2 2 0 0 1-2 2h-2" />
+              <path d="M12 16v-2" />
+            </svg>
           </div>
           <div>
             <div
@@ -99,10 +106,10 @@ export function LoginPage({ onGoToRegister }: LoginPageProps) {
                 lineHeight: 1.1,
               }}
             >
-              TechSim
+              SystemCraft
             </div>
             <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>
-              Infrastructure Platform
+              System Design University
             </div>
           </div>
         </div>
@@ -120,7 +127,7 @@ export function LoginPage({ onGoToRegister }: LoginPageProps) {
           Sign in to your workspace
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-dim)', fontFamily: "'DM Sans', sans-serif", marginBottom: 28 }}>
-          Design and simulate your infrastructure.
+          Design and simulate your distributed systems.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

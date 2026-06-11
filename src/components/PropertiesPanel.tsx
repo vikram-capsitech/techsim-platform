@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
+import { useReactFlow } from '@xyflow/react';
 import { CATEGORY_META } from '../data/nodes';
 import { getMetricsForNode } from '../data/mockMetrics';
 import type { TechNodeData } from './TechNode';
@@ -13,6 +14,7 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ node, onClose }: PropertiesPanelProps) {
+  const { updateNodeData } = useReactFlow();
   const visible = node !== null;
   const data = node?.data as TechNodeData | undefined;
   const category = data?.category;
@@ -20,12 +22,33 @@ export function PropertiesPanel({ node, onClose }: PropertiesPanelProps) {
   const metrics = node && category ? getMetricsForNode(node.id, category) : null;
 
   const [name, setName] = useState('');
-  const [replicas, setReplicas] = useState('3');
+  const [replicas, setReplicas] = useState('1');
   const [region, setRegion] = useState('us-east-1');
 
   useEffect(() => {
-    if (data) setName(data.label);
-  }, [data?.label]);
+    if (data) {
+      setName(data.label ?? '');
+      setReplicas(String(data.replicas ?? 1));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setRegion((data as any).region ?? 'us-east-1');
+    }
+  }, [node?.id, data?.label, data?.replicas]);
+
+  const onLabelChange = (val: string) => {
+    setName(val);
+    if (node) updateNodeData(node.id, { label: val });
+  };
+
+  const onReplicasChange = (val: string) => {
+    setReplicas(val);
+    const num = parseInt(val, 10);
+    if (node && !isNaN(num)) updateNodeData(node.id, { replicas: num });
+  };
+
+  const onRegionChange = (val: string) => {
+    setRegion(val);
+    if (node) updateNodeData(node.id, { region: val });
+  };
 
   return (
     <div
@@ -91,7 +114,7 @@ export function PropertiesPanel({ node, onClose }: PropertiesPanelProps) {
         <Field label="NAME">
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => onLabelChange(e.target.value)}
             style={{
               width: '100%',
               padding: '9px 12px',
@@ -112,7 +135,7 @@ export function PropertiesPanel({ node, onClose }: PropertiesPanelProps) {
         <Field label="REPLICAS">
           <input
             value={replicas}
-            onChange={(e) => setReplicas(e.target.value)}
+            onChange={(e) => onReplicasChange(e.target.value)}
             type="number"
             min="1"
             max="20"
@@ -189,7 +212,7 @@ export function PropertiesPanel({ node, onClose }: PropertiesPanelProps) {
                   fontSize: 18,
                   fontWeight: 700,
                   color: 'var(--text)',
-                  fontFamily: "'IBM Plex Mono', monospace',",
+                  fontFamily: "'IBM Plex Mono', monospace",
                   letterSpacing: '-0.02em',
                 }}
               >
@@ -214,7 +237,7 @@ export function PropertiesPanel({ node, onClose }: PropertiesPanelProps) {
           <div style={{ position: 'relative' }}>
             <select
               value={region}
-              onChange={(e) => setRegion(e.target.value)}
+              onChange={(e) => onRegionChange(e.target.value)}
               style={{
                 width: '100%',
                 padding: '9px 36px 9px 12px',

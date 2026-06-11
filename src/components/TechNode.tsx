@@ -5,6 +5,15 @@ import { NodeIcon } from './NodeIcon';
 import { SERVICE_ICONS } from '../data/serviceIcons';
 import type { NodeState } from '../simulation/SimulationEngine';
 
+export interface SelectedTool {
+  id: string;
+  name: string;
+  canvasLabel: string;
+  openSource?: boolean;
+  cloudManaged?: boolean;
+  provider?: string;
+}
+
 export interface TechNodeData {
   label: string;
   icon: string;
@@ -14,6 +23,7 @@ export interface TechNodeData {
   isSimulationRunning?: boolean;
   simState?: NodeState;
   tags?: string[];
+  selectedTool?: SelectedTool;
   // Settings
   replicas?: number;
   capacityRps?: number;
@@ -164,12 +174,12 @@ export const TechNode = memo(function TechNode({
 
   const cpuColor = cpuPct > 85 ? '#EF4444' : cpuPct > 60 ? '#EAB308' : '#22C55E';
 
-  // Shared handle style — CSS controls visibility (opacity: 0 → 1 on hover)
+  // Larger hit-area makes handles easy to grab while staying visually subtle
   const handleStyle: React.CSSProperties = {
-    width: 10,
-    height: 10,
+    width: 14,
+    height: 14,
     background: color,
-    border: '2px solid var(--bg)',
+    border: '2.5px solid var(--bg)',
     borderRadius: '50%',
   };
 
@@ -265,13 +275,14 @@ export const TechNode = memo(function TechNode({
             zIndex: 1,
           }} />
         )}
-        <div style={{ padding: '7px 8px 6px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+        <div style={{ padding: '8px 10px 7px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
 
-          {/* Row 1: category badge + status dot */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+          {/* Row 1: category badge · optional tool pill (inline) · status dot */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+            {/* Category chip */}
             <span
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
+                display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
                 background: `${color}18`,
                 border: `1px solid ${color}30`,
                 borderRadius: 4,
@@ -303,10 +314,32 @@ export const TechNode = memo(function TechNode({
               {catMeta?.label ?? category}
             </span>
 
-            {/* Status dot */}
+            {/* Selected tool pill — lives in the same row as the category chip */}
+            {td.selectedTool && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                flex: '1 1 0', minWidth: 0,
+                padding: '1px 6px',
+                background: td.selectedTool.openSource ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+                border: `1px solid ${td.selectedTool.openSource ? 'rgba(16,185,129,0.28)' : 'rgba(59,130,246,0.28)'}`,
+                borderRadius: 4,
+                fontSize: 9,
+                color: td.selectedTool.openSource ? '#10B981' : '#60A5FA',
+                fontWeight: 600,
+                fontFamily: "'IBM Plex Mono', monospace",
+                letterSpacing: '0.04em',
+              }}>
+                <span style={{ flexShrink: 0, fontSize: 8 }}>{td.selectedTool.openSource ? '⚡' : '☁'}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {td.selectedTool.canvasLabel || td.selectedTool.name}
+                </span>
+              </span>
+            )}
+
+            {/* Status dot pushed to right */}
             <span
               style={{
-                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0, marginLeft: 'auto',
                 background: statusColor,
                 boxShadow: `0 0 5px ${statusColor}80`,
                 animation: isOverloaded ? 'pulse-glow 0.7s ease-in-out infinite' : 'pulse-glow 2.5s ease-in-out infinite',
