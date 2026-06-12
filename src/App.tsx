@@ -97,6 +97,7 @@ function CanvasPage() {
   const [nodeCount, setNodeCount] = useState(0);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [chaosNodeId, setChaosNodeId] = useState<string | null>(null);
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [topology, setTopology] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] });
@@ -270,6 +271,12 @@ function CanvasPage() {
   const selectedNodeName = selectedNode ? String((selectedNode.data as { label?: string }).label ?? selectedNodeId) : null;
   const selectedNodeSimState = selectedNodeId ? nodeStates.get(selectedNodeId) ?? null : null;
 
+  // Chaos panel is tracked independently from node selection
+  const chaosNode = chaosNodeId ? topology.nodes.find(n => n.id === chaosNodeId) ?? null : null;
+  const chaosNodeTypeId = chaosNode ? (chaosNode.data as { nodeTypeId?: string }).nodeTypeId ?? null : null;
+  const chaosNodeName = chaosNode ? String((chaosNode.data as { label?: string }).label ?? chaosNodeId) : null;
+  const chaosNodeSimState = chaosNodeId ? nodeStates.get(chaosNodeId) ?? null : null;
+
   // Heal node via custom event dispatched from inside TechNode
   useEffect(() => {
     const handler = (e: Event) => {
@@ -406,6 +413,7 @@ function CanvasPage() {
             onExport={handleExport}
             onImportFile={handleImportFile}
             onChaosOnNode={handleChaosOnNode}
+            onChaosNodeSelect={(nodeId) => setChaosNodeId(nodeId)}
             isSimulationRunning={isRunning}
             nodeStates={nodeStates}
             edgeStates={edgeStates}
@@ -425,6 +433,11 @@ function CanvasPage() {
           selectedNodeName={selectedNodeName}
           selectedEdgeId={selectedEdgeId}
           selectedNodeSimState={selectedNodeSimState}
+          chaosNodeId={chaosNodeId}
+          chaosNodeTypeId={chaosNodeTypeId}
+          chaosNodeName={chaosNodeName}
+          chaosNodeSimState={chaosNodeSimState}
+          onChaosClose={() => setChaosNodeId(null)}
           injectChaos={handleChaosInject}
           speed={speed}
           onSpeedChange={handleSpeedChange}

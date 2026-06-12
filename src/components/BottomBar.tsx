@@ -459,6 +459,11 @@ export interface BottomBarProps {
   selectedNodeName?: string | null;
   selectedEdgeId: string | null;
   selectedNodeSimState: NodeState | null;
+  chaosNodeId?: string | null;
+  chaosNodeTypeId?: string | null;
+  chaosNodeName?: string | null;
+  chaosNodeSimState?: NodeState | null;
+  onChaosClose?: () => void;
   injectChaos: (type: string, targetId: string) => void;
   speed: number;
   onSpeedChange: (v: number) => void;
@@ -476,6 +481,7 @@ export function BottomBar({
   metrics,
   issues, onIssuesClick,
   selectedNodeId, selectedNodeTypeId, selectedNodeName, selectedEdgeId, selectedNodeSimState,
+  chaosNodeId, chaosNodeTypeId, chaosNodeName, chaosNodeSimState, onChaosClose,
   injectChaos,
   speed, onSpeedChange,
   traffic, onTrafficChange,
@@ -593,23 +599,23 @@ export function BottomBar({
               ▶ start sim first
             </span>
           )}
-          {isRunning && selectedNodeId && (
+          {isRunning && chaosNodeId && (
             <span style={{
               fontSize: 10, color: '#EF4444', fontFamily: "'IBM Plex Mono', monospace",
               maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              → {selectedNodeName ?? selectedNodeId}
+              → {chaosNodeName ?? chaosNodeId}
             </span>
           )}
-          {isRunning && !selectedNodeId && selectedEdgeId && (
+          {isRunning && !chaosNodeId && selectedEdgeId && (
             <div style={{ display: 'flex', gap: 4 }}>
               <ScenarioBtn label="⚡ Latency"   color="#FACC15" onClick={() => injectChaos('latency', selectedEdgeId)} />
               <ScenarioBtn label="✂ Partition" color="#C084FC" onClick={() => injectChaos('partition', selectedEdgeId)} />
             </div>
           )}
-          {isRunning && !selectedNodeId && !selectedEdgeId && (
+          {isRunning && !chaosNodeId && !selectedEdgeId && (
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'nowrap' }}>
-              click a node to inject chaos
+              click ⚡ on a node to inject chaos
             </span>
           )}
         </div>
@@ -664,15 +670,15 @@ export function BottomBar({
         </div>
       </div>
 
-      {/* Floating chaos panel — outside bar div */}
+      {/* Floating chaos panel — opens only when ⚡ icon is clicked on a node */}
       <ChaosArea
         isRunning={isRunning}
-        selectedNodeId={selectedNodeId}
-        selectedNodeName={selectedNodeName ?? null}
-        selectedNodeType={selectedNodeTypeId}
-        selectedNodeSimState={selectedNodeSimState}
+        selectedNodeId={chaosNodeId ?? null}
+        selectedNodeName={chaosNodeName ?? null}
+        selectedNodeType={chaosNodeTypeId ?? null}
+        selectedNodeSimState={chaosNodeSimState ?? null}
         injectChaos={injectChaos}
-        onClose={onDeselectNode ?? (() => {})}
+        onClose={onChaosClose ?? (() => {})}
       />
     </>
   );

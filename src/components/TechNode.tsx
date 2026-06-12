@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps, NodeResizer, NodeToolbar, useReactFlo
 import { CATEGORY_META, type Category } from '../data/nodes';
 import { NodeIcon } from './NodeIcon';
 import { SERVICE_ICONS } from '../data/serviceIcons';
+import { ToolIcon } from '../utils/toolIcon';
 import type { NodeState } from '../simulation/SimulationEngine';
 
 export interface SelectedTool {
@@ -181,6 +182,7 @@ export const TechNode = memo(function TechNode({
     background: color,
     border: '2.5px solid var(--bg)',
     borderRadius: '50%',
+    zIndex: 5,
   };
 
   return (
@@ -200,12 +202,6 @@ export const TechNode = memo(function TechNode({
           borderRadius: '2px',
         }}
       />
-
-      {/* Handles — all 4 sides; CSS makes them opacity:0 by default, 1 on hover */}
-      <Handle id="top"    type="target" position={Position.Top}    style={handleStyle} />
-      <Handle id="bottom" type="source" position={Position.Bottom} style={handleStyle} />
-      <Handle id="left"   type="target" position={Position.Left}   style={handleStyle} />
-      <Handle id="right"  type="source" position={Position.Right}  style={handleStyle} />
 
       {/* ── NodeToolbar — renders in a React Flow portal, never overlaps other nodes ── */}
       <NodeToolbar isVisible={!!selected} position={Position.Top} offset={8} className="nodrag nopan">
@@ -314,26 +310,53 @@ export const TechNode = memo(function TechNode({
               {catMeta?.label ?? category}
             </span>
 
-            {/* Selected tool pill — lives in the same row as the category chip */}
+            {/* Selected tool pill + change button */}
             {td.selectedTool && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 3,
-                flex: '1 1 0', minWidth: 0,
-                padding: '1px 6px',
-                background: td.selectedTool.openSource ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
-                border: `1px solid ${td.selectedTool.openSource ? 'rgba(16,185,129,0.28)' : 'rgba(59,130,246,0.28)'}`,
-                borderRadius: 4,
-                fontSize: 9,
-                color: td.selectedTool.openSource ? '#10B981' : '#60A5FA',
-                fontWeight: 600,
-                fontFamily: "'IBM Plex Mono', monospace",
-                letterSpacing: '0.04em',
-              }}>
-                <span style={{ flexShrink: 0, fontSize: 8 }}>{td.selectedTool.openSource ? '⚡' : '☁'}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {td.selectedTool.canvasLabel || td.selectedTool.name}
+              <>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  flex: '1 1 0', minWidth: 0,
+                  padding: '1px 6px',
+                  background: td.selectedTool.openSource ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+                  border: `1px solid ${td.selectedTool.openSource ? 'rgba(16,185,129,0.28)' : 'rgba(59,130,246,0.28)'}`,
+                  borderRadius: 4,
+                  fontSize: 9,
+                  color: td.selectedTool.openSource ? '#10B981' : '#60A5FA',
+                  fontWeight: 600,
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  letterSpacing: '0.04em',
+                }}>
+                  <ToolIcon toolId={td.selectedTool.id} size={9} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {td.selectedTool.canvasLabel || td.selectedTool.name}
+                  </span>
                 </span>
-              </span>
+                {!isRunning && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent('change-node-tool', {
+                        detail: { nodeId: id, nodeType: td.nodeTypeId, nodeName: td.label },
+                      }));
+                    }}
+                    title="Change tool"
+                    className="nodrag"
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      padding: '1px 4px',
+                      cursor: 'pointer',
+                      fontSize: 9,
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.5,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ⇄
+                  </button>
+                )}
+              </>
             )}
 
             {/* Status dot pushed to right */}
@@ -423,7 +446,7 @@ export const TechNode = memo(function TechNode({
             </button>
           )}
 
-          {/* Row 3: simulation metrics */}
+          {/* Row 3: simulation metrics + chaos button */}
           {showSimBar && (
             <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
@@ -445,6 +468,30 @@ export const TechNode = memo(function TechNode({
               }}>
                 {latency}ms
               </span>
+              <button
+                className="nodrag nopan"
+                title="Inject chaos on this node"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('node-chaos-open', { detail: { nodeId: id } }));
+                }}
+                style={{
+                  flexShrink: 0,
+                  width: 18, height: 18,
+                  borderRadius: 4,
+                  background: 'rgba(239,68,68,0.15)',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  color: '#EF4444',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, lineHeight: 1, padding: 0,
+                  transition: 'all 0.12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)'; e.currentTarget.style.borderColor = '#EF4444'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; }}
+              >
+                ⚡
+              </button>
             </div>
           )}
         </div>
@@ -466,6 +513,19 @@ export const TechNode = memo(function TechNode({
           </div>
         )}
       </div>
+
+      {/* Visible source handles — user drags from these to start a connection */}
+      <Handle id="top"    type="source" position={Position.Top}    style={handleStyle} />
+      <Handle id="bottom" type="source" position={Position.Bottom} style={handleStyle} />
+      <Handle id="left"   type="source" position={Position.Left}   style={handleStyle} />
+      <Handle id="right"  type="source" position={Position.Right}  style={handleStyle} />
+      {/* Invisible target handles — pointerEvents:none so they never block the
+          source handles above; React Flow detects them geometrically (not via
+          DOM events) for connection snapping and for rendering preset edges */}
+      <Handle id="top-t"    type="target" position={Position.Top}    style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />
+      <Handle id="bottom-t" type="target" position={Position.Bottom} style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />
+      <Handle id="left-t"   type="target" position={Position.Left}   style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />
+      <Handle id="right-t"  type="target" position={Position.Right}  style={{ ...handleStyle, opacity: 0, pointerEvents: 'none' }} />
 
       {/* Chaos status badge — outside the overflow:hidden card so it's not clipped */}
       {chaosBadge && (

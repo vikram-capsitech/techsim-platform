@@ -10,6 +10,7 @@ import {
   useEdgesState,
   useReactFlow,
   NodeResizer,
+  ConnectionLineType,
   type NodeProps,
   type Node,
   type Edge,
@@ -22,7 +23,7 @@ import '@xyflow/react/dist/style.css';
 import { TechNode, type TechNodeData, type SelectedTool } from './TechNode';
 import { GlowEdge, type EdgeRoutingType } from './GlowEdge';
 import { ToolSelectionModal, type SelectedToolData } from './ToolSelectionModal';
-import apiClient from '../api/client';
+import { isConnectionValid } from '../data/registry';
 import { AIGeneratorPanel } from './AIGeneratorPanel';
 import { NodeSettingsPanel } from './NodeSettingsPanel';
 import { KnowledgePanel } from './KnowledgePanel';
@@ -139,6 +140,7 @@ interface CanvasProps {
   onTopologyChange?: (nodes: Node[], edges: Edge[]) => void;
   onEdgeSelect?: (edgeId: string | null) => void;
   onChaosOnNode?: (chaosId: string, nodeId: string) => void;
+  onChaosNodeSelect?: (nodeId: string | null) => void;
   onPresetsClick?: () => void;
   onOpenWizard?: () => void;
   onExport?: () => void;
@@ -157,6 +159,7 @@ export function Canvas({
   onTopologyChange,
   onEdgeSelect,
   onChaosOnNode,
+  onChaosNodeSelect,
   onPresetsClick,
   onOpenWizard,
   onExport,
@@ -167,7 +170,7 @@ export function Canvas({
   canvasRef,
 }: CanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, updateNodeData } = useReactFlow();
   const { resolvedTheme } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -183,13 +186,14 @@ export function Canvas({
   const [knowledgeTarget,    setKnowledgeTarget]    = useState<{ nodeTypeId: string; label: string } | null>(null);
   const [contextMenu,        setContextMenu]        = useState<{ x: number; y: number; selectedCount: number } | null>(null);
 
-  // Tool selection modal — set on drag-drop before node is placed
+  // Tool selection modal — set on drag-drop before node is placed, or on ⇄ click to change tool
   const [toolModalConfig, setToolModalConfig] = useState<{
     nodeType: string;
     nodeName: string;
     icon: string;
     category: Category;
     position: { x: number; y: number };
+    existingNodeId?: string;
   } | null>(null);
 
   // Transient connection error shown for 5 s then auto-dismissed
@@ -212,6 +216,33 @@ export function Canvas({
     };
     window.addEventListener('node-knowledge-open', handler);
     return () => window.removeEventListener('node-knowledge-open', handler);
+  }, []);
+
+  // Listen for ⚡ chaos button dispatched by TechNode
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId } = (e as CustomEvent<{ nodeId: string }>).detail;
+      onChaosNodeSelect?.(nodeId);
+    };
+    window.addEventListener('node-chaos-open', handler);
+    return () => window.removeEventListener('node-chaos-open', handler);
+  }, [onChaosNodeSelect]);
+
+  // Listen for ⇄ change-tool button dispatched by TechNode
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId, nodeType, nodeName } = (e as CustomEvent<{ nodeId: string; nodeType: string; nodeName: string }>).detail;
+      setToolModalConfig({
+        nodeType,
+        nodeName: nodeName as string,
+        icon: '',
+        category: 'compute',
+        position: { x: 0, y: 0 },
+        existingNodeId: nodeId,
+      });
+    };
+    window.addEventListener('change-node-tool', handler as EventListener);
+    return () => window.removeEventListener('change-node-tool', handler as EventListener);
   }, []);
 
   // Default routing type for newly drawn edges (persisted, changed per-edge via EdgeLabelRenderer)
@@ -251,11 +282,47 @@ export function Canvas({
       },
       loadPreset: (presetNodes, presetEdges) => {
         nodeTypeCountsRef.current.clear();
+
+        // Enrich edges: add missing color + assign sourceHandle/targetHandle
+        // based on relative node positions so edges route through correct handles.
+        const enrichedEdges = presetEdges.map(edge => {
+          const protocol = (edge.data as { protocol?: EdgeProtocol })?.protocol ?? 'http';
+          const color = (edge.data as { color?: string })?.color
+            ?? PROTOCOL_COLORS[protocol as EdgeProtocol]
+            ?? PROTOCOL_COLORS.http;
+
+          let sourceHandle = edge.sourceHandle ?? undefined;
+          let targetHandle = edge.targetHandle ?? undefined;
+
+          if (!sourceHandle || !targetHandle) {
+            const src = presetNodes.find(n => n.id === edge.source);
+            const tgt = presetNodes.find(n => n.id === edge.target);
+            if (src && tgt) {
+              const dx = tgt.position.x - src.position.x;
+              const dy = tgt.position.y - src.position.y;
+              if (Math.abs(dy) >= Math.abs(dx)) {
+                sourceHandle = dy >= 0 ? 'bottom' : 'top';
+                targetHandle = dy >= 0 ? 'top-t'  : 'bottom-t';
+              } else {
+                sourceHandle = dx >= 0 ? 'right' : 'left';
+                targetHandle = dx >= 0 ? 'left-t' : 'right-t';
+              }
+            }
+          }
+
+          return {
+            ...edge,
+            sourceHandle,
+            targetHandle,
+            data: { ...edge.data, color, invalid: false },
+          };
+        });
+
         setNodes(presetNodes);
-        setEdges(presetEdges);
+        setEdges(enrichedEdges);
         onCountChange(presetNodes.length);
         setTimeout(() => fitView({ padding: 0.12, duration: 350 }), 60);
-        setTimeout(() => runValidate(presetNodes, presetEdges), 80);
+        setTimeout(() => runValidate(presetNodes, enrichedEdges), 80);
       },
     };
   });
@@ -284,9 +351,9 @@ export function Canvas({
     [onIssuesChange, onNewIssues, setEdges],
   );
 
-  // ── Connect (async — registry validates before wiring) ───────────────────
+  // ── Connect (synchronous — local registry validates before wiring) ─────────
   const onConnect: OnConnect = useCallback(
-    async (connection: Connection) => {
+    (connection: Connection) => {
       const sourceNode = nodes.find((n) => n.id === connection.source);
       const targetNode = nodes.find((n) => n.id === connection.target);
       if (!sourceNode || !targetNode) return;
@@ -294,21 +361,15 @@ export function Canvas({
       const sourceType = (sourceNode.data as TechNodeData).nodeTypeId;
       const targetType = (targetNode.data as TechNodeData).nodeTypeId;
 
-      // Registry connection validation (graceful degradation on error)
       if (sourceType && targetType) {
-        try {
-          const res = await apiClient.get(`/api/registry/connections/${sourceType}`);
-          const blocked: string[] = res.data?.validConnections?.cannotConnectTo ?? [];
-          const reasons: Record<string, string> = res.data?.validConnections?.cannotConnectToReason ?? {};
-          if (blocked.includes(targetType)) {
-            const reason = reasons[targetType]
-              ?? `${(sourceNode.data as TechNodeData).label} cannot connect directly to ${(targetNode.data as TechNodeData).label}`;
-            setConnectionError(reason);
-            setTimeout(() => setConnectionError(null), 5000);
-            return;
-          }
-        } catch {
-          // Network/registry error — allow connection (don't block user)
+        const { valid, reason } = isConnectionValid(sourceType, targetType);
+        if (!valid) {
+          setConnectionError(
+            reason ??
+            `${(sourceNode.data as TechNodeData).label} cannot connect directly to ${(targetNode.data as TechNodeData).label}`,
+          );
+          setTimeout(() => setConnectionError(null), 5000);
+          return;
         }
       }
 
@@ -423,9 +484,13 @@ export function Canvas({
       cloudManaged: toolData.cloudManaged,
       provider: toolData.provider,
     };
-    _placeNode(toolModalConfig.nodeType, toolModalConfig.icon, toolModalConfig.category, toolModalConfig.position, selectedTool);
+    if (toolModalConfig.existingNodeId) {
+      updateNodeData(toolModalConfig.existingNodeId, { selectedTool });
+    } else {
+      _placeNode(toolModalConfig.nodeType, toolModalConfig.icon, toolModalConfig.category, toolModalConfig.position, selectedTool);
+    }
     setToolModalConfig(null);
-  }, [toolModalConfig, _placeNode]);
+  }, [toolModalConfig, _placeNode, updateNodeData]);
 
   const handleToolSkip = useCallback(() => {
     if (!toolModalConfig) return;
@@ -805,7 +870,13 @@ export function Canvas({
         fitView
         minZoom={0.15}
         maxZoom={3}
-        connectionRadius={30}
+        connectionRadius={40}
+        connectionLineType={ConnectionLineType.Bezier}
+        connectionLineStyle={{
+          stroke: '#8B5CF6',
+          strokeWidth: 2,
+          filter: 'drop-shadow(0 0 4px #8B5CF6)',
+        }}
         deleteKeyCode={['Backspace', 'Delete']}
         colorMode={resolvedTheme}
         proOptions={{ hideAttribution: true }}

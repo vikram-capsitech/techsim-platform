@@ -27,7 +27,7 @@ with learning paths, chaos engineering, interview mode, and AI guidance.
 | AI Primary | Groq (llama-3.3-70b-versatile) |
 | AI Fallback | Gemini 1.5 Flash |
 | HTTP Client | Axios via `src/api/client.ts` (apiClient) |
-| Icons | @icons-pack/react-simple-icons + Lucide React |
+| Icons | simple-icons v16 (SVG path/hex, named imports) + Lucide React |
 
 ---
 
@@ -70,6 +70,8 @@ techsim/
 │   │   ├── ConceptsPage.tsx / ConceptPage.tsx
 │   │   ├── InterviewPage.tsx / InterviewSession.tsx
 │   │   └── Settings.tsx
+│   ├── utils/
+│   │   └── toolIcon.tsx        ← ToolIcon component (simple-icons SVG renderer for tool cards)
 │   ├── context/
 │   │   ├── AuthContext.tsx     ← User auth state
 │   │   └── ThemeContext.tsx    ← dark/light/system theme
@@ -376,6 +378,8 @@ Decision: **CRDT via Yjs + PartyKit**
 | Jun 11 | Kai | Added middleware: rateLimiter, planGuard, sanitize, requestLogger, helmet. Fixed API key logging, feedback model, interview progress. |
 | Jun 11 | Kai | Wired AI validation (POST /api/ai/validate) to ValidationGate frontend. Added GET /api/registry/chaos / GET /api/registry/chaos/:chaosId to serve chaos scenarios. |
 | Jun 11 | Ava | Sprint 4 Tool Selection Modal: created ToolSelectionModal.tsx (search, group tabs, OSS/Managed badges, client-type tiles). Added SelectedTool to TechNodeData; TechNode shows ⚡/☁️ tool badge. Canvas onDrop intercepts every drag and shows modal before placing node. onConnect now async: validates against /api/registry/connections/:nodeId, blocks invalid connections, shows 5 s inline error banner. Zero TS errors. |
+| Jun 12 | Ava | Tool Selection Modal — 4 fixes: (1) NODE_TYPE_TO_REGISTRY_ID mapping converts canvas hyphenated nodeTypeIds (api-gateway, load-balancer) to registry snake_case IDs — fixes API Gateway showing no tools. (2) Created src/utils/toolIcon.tsx using simple-icons v16 to render real brand SVG icons (nginx, redis, postgres, kafka, etc.) in tool cards. (3) TechNode ⇄ change-tool button dispatches change-node-tool event; Canvas listens and reopens modal with existingNodeId, handleToolSelected calls updateNodeData instead of placing a new node. Button hidden during simulation. (4) Tool cards single-click expand (gridColumn 1/-1) showing Core/Real World/When to Pick three-perspective panel + pros/cons grid + inline Select button; double-click or Select button confirms selection. |
+| Jun 12 | Ava | Sprint 4 critical fixes: (1) Connection validation now synchronous — moved from async API call (which checked wrong field `validConnections.cannotConnectTo`) to local registry check via new `src/data/registry/index.ts` (reads `connectionRestrictions.cannotConnectTo`). Client Browser → PostgreSQL now correctly blocked with explanation. (2) ToolIcon white-square fix — added fallback letter rendering when tool ID not in icon map. (3) Canvas onConnect is now fully synchronous; removed apiClient import from Canvas. (4) Chaos panel decoupled from node selection: node click opens Properties panel only; ⚡ button on node (shown when simulation running) opens chaos panel independently. |
 | Jun 11 | Kai | Rebranded project from TechSim to SystemCraft. Redesigned homepage with interactive chaos simulator, feature tabs, and master plan roadmap. |
 
 ---

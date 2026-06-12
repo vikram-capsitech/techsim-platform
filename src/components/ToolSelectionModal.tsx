@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import apiClient from '../api/client'
+import { ToolIcon } from '../utils/toolIcon'
 
 export interface SelectedToolData {
   id: string
@@ -18,9 +19,90 @@ interface Tool {
   cloudManaged: boolean
   provider?: string
   bestFor: string[]
+  notGoodFor?: string[]
   costEstimate: string
   canvasLabel: string
   groupName: string
+  pros?: string[]
+  cons?: string[]
+  realWorldUsage?: Array<{ company: string; [key: string]: unknown }>
+}
+
+// Maps canvas/drag nodeTypeIds (hyphenated or camelCase) → registry snake_case IDs
+const NODE_TYPE_TO_REGISTRY_ID: Record<string, string> = {
+  // Network
+  'client':           'client_browser',
+  'clientBrowser':    'client_browser',
+  'cdn':              'cdn',
+  'dns':              'dns',
+  'waf':              'waf',
+  'firewall':         'waf',
+  'load-balancer':    'load_balancer',
+  'load_balancer':    'load_balancer',
+  'loadBalancer':     'load_balancer',
+  'api-gateway':      'api_gateway',
+  'api_gateway':      'api_gateway',
+  'apiGateway':       'api_gateway',
+  'router':           'reverse_proxy',
+  'reverse-proxy':    'reverse_proxy',
+  'reverse_proxy':    'reverse_proxy',
+  'reverseProxy':     'reverse_proxy',
+  'rate-limiter':     'rate_limiter',
+  'rate_limiter':     'rate_limiter',
+  'rateLimiter':      'rate_limiter',
+  // Compute
+  'microservice':     'microservice',
+  'api-server':       'microservice',
+  'apiServer':        'microservice',
+  'service':          'microservice',
+  'lambda':           'serverless_function',
+  'serverless':       'serverless_function',
+  'worker':           'microservice',
+  'job-processor':    'microservice',
+  'auth-service':     'auth_service',
+  'auth_service':     'auth_service',
+  'authService':      'auth_service',
+  'websocket-server': 'websocket_server',
+  'websocketServer':  'websocket_server',
+  // Data
+  'postgres':         'postgresql',
+  'postgresql':       'postgresql',
+  'mysql':            'mysql',
+  'mongodb':          'mongodb',
+  'redis':            'redis',
+  'redisCache':       'redis',
+  'cache':            'redis',
+  'cassandra':        'cassandra',
+  'elastic':          'elasticsearch',
+  'elasticsearch':    'elasticsearch',
+  'dynamodb':         'dynamodb',
+  's3':               'aws_s3',
+  'storage':          'aws_s3',
+  'data-warehouse':   'postgresql',
+  'timeseries-db':    'cassandra',
+  // Messaging
+  'kafka':            'apache_kafka',
+  'rabbitmq':         'rabbitmq',
+  'sqs':              'rabbitmq',
+  'pubsub':           'rabbitmq',
+  'event-bus':        'rabbitmq',
+  'nats':             'rabbitmq',
+  'messageQueue':     'rabbitmq',
+  'message-queue':    'rabbitmq',
+  // Infrastructure
+  'kubernetes':       'kubernetes',
+  'docker':           'docker_container',
+  'k8s-service':      'kubernetes',
+  'ingress':          'kubernetes',
+  'service-mesh':     'kubernetes',
+  'config-server':    'microservice',
+  // Monitoring
+  'prometheus':       'prometheus',
+  'grafana':          'grafana',
+  'monitoring':       'prometheus',
+  'jaeger':           'prometheus',
+  'log-agg':          'prometheus',
+  'alertmanager':     'prometheus',
 }
 
 interface ClientType {
@@ -52,13 +134,15 @@ export function ToolSelectionModal({ nodeType, nodeName, onSelect, onSkip, onCan
   const [isClientOrigin, setIsClientOrigin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedTool, setSelectedTool] = useState<Tool | ClientType | null>(null)
+  const [expandedTool, setExpandedTool] = useState<string | null>(null)
   const [activeGroup, setActiveGroup] = useState('all')
   const [search, setSearch] = useState('')
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await apiClient.get(`/api/registry/node/${nodeType}/tools`)
+        const registryId = NODE_TYPE_TO_REGISTRY_ID[nodeType] ?? nodeType
+        const res = await apiClient.get(`/api/registry/node/${registryId}/tools`)
         if (res.data.isClientOrigin) {
           setIsClientOrigin(true)
           setClientTypes(res.data.clientTypes || [])
@@ -227,49 +311,138 @@ export function ToolSelectionModal({ nodeType, nodeName, onSelect, onSkip, onCan
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {filtered.map(tool => {
                 const isSelected = selectedTool?.id === tool.id
+                const isExpanded = expandedTool === tool.id
                 return (
                   <button
                     key={tool.id}
-                    onClick={() => setSelectedTool(tool)}
+                    onClick={() => setExpandedTool(isExpanded ? null : tool.id)}
+                    onDoubleClick={() => { setSelectedTool(tool); setExpandedTool(null) }}
                     style={{
                       background: isSelected ? 'rgba(124,58,237,0.13)' : 'var(--card-bg)',
-                      border: `2px solid ${isSelected ? '#7C3AED' : 'var(--border)'}`,
+                      border: `2px solid ${isSelected ? '#7C3AED' : isExpanded ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
                       borderRadius: 10, padding: '12px 14px',
                       cursor: 'pointer', textAlign: 'left',
                       transition: 'all 0.15s',
+                      gridColumn: isExpanded ? '1 / -1' : undefined,
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'flex-start' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif" }}>
+                    {/* Tool header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        background: 'var(--bg)',
+                        border: '1px solid var(--border)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <ToolIcon toolId={tool.id} size={16} />
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {tool.name}
                       </span>
-                      <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 6 }}>
+                      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                         {tool.openSource && (
-                          <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(16,185,129,0.12)', color: '#10B981', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
-                            OSS
-                          </span>
+                          <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(16,185,129,0.12)', color: '#10B981', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace" }}>OSS</span>
                         )}
                         {tool.cloudManaged && (
-                          <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(59,130,246,0.12)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
-                            Managed
-                          </span>
+                          <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(59,130,246,0.12)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace" }}>Managed</span>
                         )}
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>{isExpanded ? '▲' : '▼'}</span>
                       </div>
                     </div>
 
-                    <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.55, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {tool.description?.slice(0, 100)}{(tool.description?.length ?? 0) > 100 ? '…' : ''}
+                    <p style={{ margin: '0 0 6px', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.55, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {tool.description?.slice(0, 90)}{(tool.description?.length ?? 0) > 90 ? '…' : ''}
                     </p>
 
-                    {tool.bestFor?.[0] && (
+                    {tool.bestFor?.[0] && !isExpanded && (
                       <div style={{ fontSize: 10, color: 'var(--accent-bright)', fontFamily: "'IBM Plex Mono', monospace" }}>
                         ✓ {tool.bestFor[0]}
                       </div>
                     )}
 
-                    {tool.costEstimate && (
-                      <div style={{ fontSize: 10, color: '#10B981', marginTop: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
-                        {tool.costEstimate}
+                    {/* Expanded three-perspective detail */}
+                    {isExpanded && (
+                      <div
+                        style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 10, textAlign: 'left' }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {/* 1 — Core (technical) */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            ⚙ Core
+                          </div>
+                          <p style={{ fontSize: 11, color: 'var(--text-secondary, var(--text-muted))', margin: 0, lineHeight: 1.6, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            {tool.description}
+                          </p>
+                        </div>
+
+                        {/* 2 — Real World */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            🌍 Real World
+                          </div>
+                          <p style={{ fontSize: 11, color: 'var(--text-secondary, var(--text-muted))', margin: '0 0 4px', lineHeight: 1.6, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            {tool.bestFor?.length
+                              ? `Best for: ${tool.bestFor.join(', ')}`
+                              : 'Real-world usage data coming soon'}
+                          </p>
+                          {(tool.realWorldUsage?.length ?? 0) > 0 && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {tool.realWorldUsage!.map(rw => (
+                                <span key={rw.company} style={{ fontSize: 9, padding: '1px 6px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                                  {rw.company}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3 — When to Pick */}
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            💡 When to Pick This
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary, var(--text-muted))', lineHeight: 1.6, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            {tool.bestFor?.[0] && (
+                              <div><span style={{ color: '#10B981' }}>✓ Pick if: </span>{tool.bestFor[0]}</div>
+                            )}
+                            {tool.notGoodFor?.[0] && (
+                              <div><span style={{ color: '#EF4444' }}>✗ Avoid if: </span>{tool.notGoodFor[0]}</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Pros / Cons */}
+                        {((tool.pros?.length ?? 0) > 0 || (tool.cons?.length ?? 0) > 0) && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+                            <div>
+                              {tool.pros?.slice(0, 2).map(p => (
+                                <div key={p} style={{ fontSize: 10, color: '#10B981', marginBottom: 2, fontFamily: "'IBM Plex Mono', monospace" }}>+ {p}</div>
+                              ))}
+                            </div>
+                            <div>
+                              {tool.cons?.slice(0, 2).map(c => (
+                                <div key={c} style={{ fontSize: 10, color: '#EF4444', marginBottom: 2, fontFamily: "'IBM Plex Mono', monospace" }}>- {c}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Select button */}
+                        <button
+                          onClick={() => { setSelectedTool(tool); setExpandedTool(null) }}
+                          style={{
+                            width: '100%',
+                            background: '#7C3AED', color: 'white',
+                            border: 'none', borderRadius: 6,
+                            padding: '7px', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 500,
+                            fontFamily: "'DM Sans', sans-serif",
+                          }}
+                        >
+                          Select {tool.name} →
+                        </button>
                       </div>
                     )}
                   </button>

@@ -505,7 +505,18 @@
                                 "https://aws.amazon.com/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "AWS ALB is like a managed highway interchange \u2014 AWS keeps the ramps operating while routing web traffic to the right backend based on the hostname, URL path, and health of each destination.",
+                            "timsTake": "Pick AWS ALB for HTTP and HTTPS routing to EC2, ECS, EKS, or Lambda inside AWS; use NLB for raw TCP, static-IP, or ultra-low-latency needs and place CloudFront or WAF in front when internet-edge protection is required.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "signpost",
+                                "sourceUrl": "https://lucide.dev/icons/signpost",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "aws_nlb",
@@ -799,7 +810,18 @@
                                 "https://nginx.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Nginx is like a traffic cop at a busy intersection \u2014 it directs cars (requests) to the right lanes (servers) without getting in the way itself.",
+                            "timsTake": "Pick Nginx when you need a proven reverse proxy, TLS terminator, static-file server, or straightforward HTTP load balancer; choose Envoy for service-mesh behavior and a managed load balancer when your team should not operate the proxy layer.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "route",
+                                "sourceUrl": "https://lucide.dev/icons/route",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "haproxy",
@@ -840,7 +862,18 @@
                                 "https://www.haproxy.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "HAProxy is like an airport control tower \u2014 it watches every runway (backend) and quickly redirects incoming planes (connections) when one becomes overloaded or unavailable.",
+                            "timsTake": "Pick HAProxy when precise L4/L7 routing, health checks, connection handling, and predictable proxy performance matter more than bundled web-server features; use Nginx when static content and simpler web configuration are central.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "split",
+                                "sourceUrl": "https://lucide.dev/icons/split",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "envoy",
@@ -4489,7 +4522,18 @@
                                 "https://github.com/search?type=code&q=Kong%20Gateway"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Kong is like the security desk in an office lobby \u2014 it checks credentials, applies rules, records visits, and sends each visitor (API call) to the correct department.",
+                            "timsTake": "Pick Kong when several teams need a shared API gateway with plugins, authentication policies, rate limits, and self-hosted or hybrid deployment options; use a cloud-native managed gateway for lower operations overhead or Nginx for basic routing only.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "network",
+                                "sourceUrl": "https://lucide.dev/icons/network",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "tyk",
@@ -5237,7 +5281,18 @@
                                 "https://nginx.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Nginx is like a traffic cop at a busy intersection \u2014 it directs cars (requests) to the right lanes (servers) without getting in the way itself.",
+                            "timsTake": "Pick Nginx when you need a proven reverse proxy, TLS terminator, static-file server, or straightforward HTTP load balancer; choose Envoy for service-mesh behavior and a managed load balancer when your team should not operate the proxy layer.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "route",
+                                "sourceUrl": "https://lucide.dev/icons/route",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "haproxy",
@@ -5276,7 +5331,18 @@
                                 "https://www.haproxy.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "HAProxy is like an airport control tower \u2014 it watches every runway (backend) and quickly redirects incoming planes (connections) when one becomes overloaded or unavailable.",
+                            "timsTake": "Pick HAProxy when precise L4/L7 routing, health checks, connection handling, and predictable proxy performance matter more than bundled web-server features; use Nginx when static content and simpler web configuration are central.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "split",
+                                "sourceUrl": "https://lucide.dev/icons/split",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "envoy",
@@ -11021,7 +11087,18 @@
                                 "https://nginx.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": true,
-                            "addedReason": "Added by AI because Nginx is a relevant real-world egress proxy option with notable adoption, interview relevance, or enterprise usage."
+                            "addedReason": "Added by AI because Nginx is a relevant real-world egress proxy option with notable adoption, interview relevance, or enterprise usage.",
+                            "analogy": "Nginx is like a traffic cop at a busy intersection \u2014 it directs cars (requests) to the right lanes (servers) without getting in the way itself.",
+                            "timsTake": "Pick Nginx when you need a proven reverse proxy, TLS terminator, static-file server, or straightforward HTTP load balancer; choose Envoy for service-mesh behavior and a managed load balancer when your team should not operate the proxy layer.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "route",
+                                "sourceUrl": "https://lucide.dev/icons/route",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "haproxy",
@@ -11060,7 +11137,18 @@
                                 "https://www.haproxy.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": true,
-                            "addedReason": "Added by AI because HAProxy is a relevant real-world egress proxy option with notable adoption, interview relevance, or enterprise usage."
+                            "addedReason": "Added by AI because HAProxy is a relevant real-world egress proxy option with notable adoption, interview relevance, or enterprise usage.",
+                            "analogy": "HAProxy is like an airport control tower \u2014 it watches every runway (backend) and quickly redirects incoming planes (connections) when one becomes overloaded or unavailable.",
+                            "timsTake": "Pick HAProxy when precise L4/L7 routing, health checks, connection handling, and predictable proxy performance matter more than bundled web-server features; use Nginx when static content and simpler web configuration are central.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "split",
+                                "sourceUrl": "https://lucide.dev/icons/split",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "tinyproxy",
@@ -20521,7 +20609,18 @@
                                 "https://www.elastic.co/elasticsearch/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Elasticsearch is like the index at the back of a huge encyclopedia \u2014 it helps you find relevant pages quickly without scanning every page from the beginning.",
+                            "timsTake": "Pick Elasticsearch for serious full-text search, relevance ranking, faceting, and log exploration; keep a separate source-of-truth database because search indexes are optimized for retrieval, not authoritative transactional storage.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "search",
+                                "sourceUrl": "https://lucide.dev/icons/search",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "opensearch",
@@ -35469,7 +35568,18 @@
                                 "https://www.postgresql.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "PostgreSQL is like a well-run library with strict catalog rules \u2014 information is organized, relationships are enforced, and complex questions can be answered reliably.",
+                            "timsTake": "Start with PostgreSQL for most transactional business systems that need correctness, joins, reporting, and mature tooling; move to a specialized store only when a measured workload proves that relational design is the wrong fit.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "database",
+                                "sourceUrl": "https://lucide.dev/icons/database",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "aws_aurora_postgresql",
@@ -37633,7 +37743,18 @@
                                 "https://redis.io/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Redis is like a whiteboard beside your desk \u2014 the facts you need repeatedly are available immediately instead of being fetched from the filing cabinet every time. Treat the whiteboard as disposable unless you deliberately configure durability.",
+                            "timsTake": "Pick Redis for hot cache entries, sessions, counters, rate limits, and short-lived coordination state; do not make it your primary system of record unless you have explicitly designed for persistence, memory cost, and failover.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "zap",
+                                "sourceUrl": "https://lucide.dev/icons/zap",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "aws_elasticache_for_redis",
@@ -38315,7 +38436,18 @@
                                 "https://www.elastic.co/elasticsearch/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Elasticsearch is like the index at the back of a huge encyclopedia \u2014 it helps you find relevant pages quickly without scanning every page from the beginning.",
+                            "timsTake": "Pick Elasticsearch for serious full-text search, relevance ranking, faceting, and log exploration; keep a separate source-of-truth database because search indexes are optimized for retrieval, not authoritative transactional storage.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "search",
+                                "sourceUrl": "https://lucide.dev/icons/search",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "opensearch",
@@ -42470,7 +42602,18 @@
                                 "https://redis.io/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Redis is like a whiteboard beside your desk \u2014 the facts you need repeatedly are available immediately instead of being fetched from the filing cabinet every time. Treat the whiteboard as disposable unless you deliberately configure durability.",
+                            "timsTake": "Pick Redis for hot cache entries, sessions, counters, rate limits, and short-lived coordination state; do not make it your primary system of record unless you have explicitly designed for persistence, memory cost, and failover.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "zap",
+                                "sourceUrl": "https://lucide.dev/icons/zap",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "aws_dynamodb",
@@ -43511,7 +43654,18 @@
                                 "https://github.com/search?type=code&q=MongoDB"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "MongoDB is like a cabinet of flexible JSON folders \u2014 each folder can carry the fields it needs without forcing every record into the same rigid form.",
+                            "timsTake": "Pick MongoDB when your application naturally reads and writes document-shaped aggregates with evolving fields; choose PostgreSQL when relationships, constraints, multi-row transactions, and analytical joins dominate the design.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "file-braces",
+                                "sourceUrl": "https://lucide.dev/icons/file-braces",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "google_firestore",
@@ -53177,7 +53331,18 @@
                                 "https://kafka.apache.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Kafka is like a durable conveyor belt with a logbook \u2014 producers place events on the belt, and different teams can inspect the same history at their own speed or replay it later.",
+                            "timsTake": "Pick Kafka when you need durable high-throughput event streams, replay, partitions, and multiple independent consumers; use SQS, RabbitMQ, or NATS for simpler task delivery and request-decoupling problems.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "workflow",
+                                "sourceUrl": "https://lucide.dev/icons/workflow",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "aws_msk",
@@ -55861,7 +56026,18 @@
                                 "https://kafka.apache.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": true,
-                            "addedReason": "Added by AI because Apache Kafka is a relevant real-world event bus option with notable adoption, interview relevance, or enterprise usage."
+                            "addedReason": "Added by AI because Apache Kafka is a relevant real-world event bus option with notable adoption, interview relevance, or enterprise usage.",
+                            "analogy": "Kafka is like a durable conveyor belt with a logbook \u2014 producers place events on the belt, and different teams can inspect the same history at their own speed or replay it later.",
+                            "timsTake": "Pick Kafka when you need durable high-throughput event streams, replay, partitions, and multiple independent consumers; use SQS, RabbitMQ, or NATS for simpler task delivery and request-decoupling problems.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "workflow",
+                                "sourceUrl": "https://lucide.dev/icons/workflow",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "dapr_pub_sub",
@@ -58853,7 +59029,18 @@
                                 "https://kafka.apache.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": true,
-                            "addedReason": "Added by AI because Apache Kafka is a relevant real-world event streaming platform option with notable adoption, interview relevance, or enterprise usage."
+                            "addedReason": "Added by AI because Apache Kafka is a relevant real-world event streaming platform option with notable adoption, interview relevance, or enterprise usage.",
+                            "analogy": "Kafka is like a durable conveyor belt with a logbook \u2014 producers place events on the belt, and different teams can inspect the same history at their own speed or replay it later.",
+                            "timsTake": "Pick Kafka when you need durable high-throughput event streams, replay, partitions, and multiple independent consumers; use SQS, RabbitMQ, or NATS for simpler task delivery and request-decoupling problems.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "workflow",
+                                "sourceUrl": "https://lucide.dev/icons/workflow",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         }
                     ]
                 }
@@ -60327,7 +60514,18 @@
                                 "https://kafka.apache.org/?utm_source=techsim_registry"
                             ],
                             "addedByAI": true,
-                            "addedReason": "Added by AI because Apache Kafka is a relevant real-world publish subscribe option with notable adoption, interview relevance, or enterprise usage."
+                            "addedReason": "Added by AI because Apache Kafka is a relevant real-world publish subscribe option with notable adoption, interview relevance, or enterprise usage.",
+                            "analogy": "Kafka is like a durable conveyor belt with a logbook \u2014 producers place events on the belt, and different teams can inspect the same history at their own speed or replay it later.",
+                            "timsTake": "Pick Kafka when you need durable high-throughput event streams, replay, partitions, and multiple independent consumers; use SQS, RabbitMQ, or NATS for simpler task delivery and request-decoupling problems.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "workflow",
+                                "sourceUrl": "https://lucide.dev/icons/workflow",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "apache_pulsar",
@@ -61180,7 +61378,18 @@
                                 "https://kubernetes.io/?utm_source=techsim_registry"
                             ],
                             "addedByAI": false,
-                            "addedReason": "Included in the user-supplied registry specification."
+                            "addedReason": "Included in the user-supplied registry specification.",
+                            "analogy": "Kubernetes is like a port manager for shipping containers \u2014 it decides where containers should run, replaces damaged ones, and moves work when a dock becomes unavailable.",
+                            "timsTake": "Pick Kubernetes when enough services, teams, scaling policies, and deployment controls justify an orchestration platform; avoid it for a small application when a managed container platform can deliver the same outcome with far less operational burden.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "boxes",
+                                "sourceUrl": "https://lucide.dev/icons/boxes",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "k3s",
@@ -66803,7 +67012,18 @@
                                 "https://kubernetes.io/?utm_source=techsim_registry"
                             ],
                             "addedByAI": true,
-                            "addedReason": "Added by AI because Kubernetes is a relevant real-world container orchestration option with notable adoption, interview relevance, or enterprise usage."
+                            "addedReason": "Added by AI because Kubernetes is a relevant real-world container orchestration option with notable adoption, interview relevance, or enterprise usage.",
+                            "analogy": "Kubernetes is like a port manager for shipping containers \u2014 it decides where containers should run, replaces damaged ones, and moves work when a dock becomes unavailable.",
+                            "timsTake": "Pick Kubernetes when enough services, teams, scaling policies, and deployment controls justify an orchestration platform; avoid it for a small application when a managed container platform can deliver the same outcome with far less operational burden.",
+                            "modalIcon": {
+                                "library": "lucide",
+                                "name": "boxes",
+                                "sourceUrl": "https://lucide.dev/icons/boxes",
+                                "license": "ISC",
+                                "licenseUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+                                "isVendorLogo": false,
+                                "usageNote": "Generic open-source UI icon. Preserve the Lucide license notice in the application distribution."
+                            }
                         },
                         {
                             "id": "docker_swarm",
@@ -97054,12 +97274,14 @@
         "patches": [
             "lifecycle_amendment",
             "priority_quality",
-            "realworld_resources"
+            "realworld_resources",
+            "modal_analogy_patch"
         ],
         "totalNodes": 169,
         "totalTools": 2045,
         "realDescriptions": 296,
         "genericRemaining": 1749,
-        "nodesWithConnections": 14
+        "nodesWithConnections": 14,
+        "analogiesAdded": 20
     }
 }
