@@ -1,7 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const ToolRegistry_1 = require("../models/ToolRegistry");
+const chaosScenarios_json_1 = __importDefault(require("../../src/data/content/chaosScenarios.json"));
 const router = (0, express_1.Router)();
 // GET /api/registry/node/:nodeId — get node with all tools
 router.get('/node/:nodeId', async (req, res) => {
@@ -48,8 +52,7 @@ router.get('/connections/:nodeId', async (req, res) => {
 // GET /api/registry/chaos — returns all chaos scenarios for frontend
 router.get('/chaos', async (req, res) => {
     try {
-        const chaosData = require('../../src/data/content/chaosScenarios.json');
-        res.json(chaosData.scenarios || chaosData);
+        res.json(chaosScenarios_json_1.default.scenarios || chaosScenarios_json_1.default);
     }
     catch (err) {
         res.status(500).json({ error: 'Server error' });
@@ -58,8 +61,7 @@ router.get('/chaos', async (req, res) => {
 // GET /api/registry/chaos/:chaosId — returns a single chaos scenario
 router.get('/chaos/:chaosId', async (req, res) => {
     try {
-        const chaosData = require('../../src/data/content/chaosScenarios.json');
-        const scenarios = chaosData.scenarios || chaosData;
+        const scenarios = chaosScenarios_json_1.default.scenarios || chaosScenarios_json_1.default;
         const scenario = scenarios.find((s) => s.id === req.params.chaosId);
         if (!scenario)
             return res.status(404).json({ error: 'Not found' });

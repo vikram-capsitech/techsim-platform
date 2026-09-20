@@ -21,5 +21,9 @@ export const aiLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 50,
   keyGenerator: (req: any) => req.user?._id?.toString() || req.ip,
+  // @ts-ignore
+  validate: { keyGeneratorIpFallback: false },
+
+
   message: { error: 'AI request limit reached. Resets in 1 hour.' }
 })

@@ -24,5 +24,7 @@ exports.aiLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 50,
     keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+    // @ts-ignore
+    validate: { keyGeneratorIpFallback: false },
     message: { error: 'AI request limit reached. Resets in 1 hour.' }
 });

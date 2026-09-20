@@ -26,3 +26,7 @@ server/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Local persistent Mongo memory server data
+.mongo-data/
+

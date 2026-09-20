@@ -40,7 +40,7 @@ async function callAI(userPrompt, systemPrompt, maxTokens = 1000, customGroqKey,
         try {
             const genAI = new generative_ai_1.GoogleGenerativeAI(geminiKey);
             const model = genAI.getGenerativeModel({
-                model: 'gemini-1.5-flash',
+                model: 'gemini-3.5-flash',
                 systemInstruction: systemPrompt
             });
             const result = await model.generateContent(userPrompt);

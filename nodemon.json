@@ -1,0 +1,9 @@
+{
+  "watch": ["server"],
+  "ext": "ts,json",
+  "ignore": [
+    ".mongo-data/**",
+    "node_modules/**"
+  ],
+  "exec": "ts-node server/index.ts"
+}

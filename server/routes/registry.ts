@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { NodeRegistry } from '../models/ToolRegistry'
+import chaosData from '../../src/data/content/chaosScenarios.json'
 
 const router = Router()
 
@@ -51,7 +52,6 @@ router.get('/connections/:nodeId', async (req, res) => {
 // GET /api/registry/chaos — returns all chaos scenarios for frontend
 router.get('/chaos', async (req, res) => {
   try {
-    const chaosData = require('../../src/data/content/chaosScenarios.json')
     res.json(chaosData.scenarios || chaosData)
   } catch (err) {
     res.status(500).json({ error: 'Server error' })
@@ -61,7 +61,6 @@ router.get('/chaos', async (req, res) => {
 // GET /api/registry/chaos/:chaosId — returns a single chaos scenario
 router.get('/chaos/:chaosId', async (req, res) => {
   try {
-    const chaosData = require('../../src/data/content/chaosScenarios.json')
     const scenarios = chaosData.scenarios || chaosData
     const scenario = scenarios.find((s: any) => s.id === req.params.chaosId)
     if (!scenario) return res.status(404).json({ error: 'Not found' })
